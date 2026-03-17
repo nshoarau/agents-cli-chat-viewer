@@ -27,6 +27,7 @@ const EXTENSIONLESS_FILE_NAMES = new Set([
 export const conversationRouter = Router();
 
 const normalizePathCandidate = (value: string): string => value.trim().replace(/[),.:;!?]+$/, '');
+const WSL_DISTRIBUTION_NAME = process.env.WSL_DISTRO_NAME;
 
 const isDomainLike = (value: string): boolean =>
   /^(?:\d{1,3}\.){1,3}\d{1,3}(?::\d+)?$/.test(value) ||
@@ -118,6 +119,15 @@ const resolvePreviewCandidates = (
   }
 
   return [...candidates];
+};
+
+const toEditorPath = (resolvedPath: string): string => {
+  if (!WSL_DISTRIBUTION_NAME || !path.isAbsolute(resolvedPath) || /^[A-Za-z]:[\\/]/.test(resolvedPath)) {
+    return resolvedPath;
+  }
+
+  const normalizedPath = resolvedPath.replace(/\//g, '\\');
+  return `\\\\wsl.localhost\\${WSL_DISTRIBUTION_NAME}${normalizedPath}`;
 };
 
 const getLogsDir = () => process.env.LOGS_DIR || path.join(__dirname, '../../logs');
@@ -213,6 +223,7 @@ conversationRouter.get('/:id/files/content', async (req, res) => {
 
     return res.json({
       filePath: matchedPath,
+      editorPath: toEditorPath(matchedPath),
       content: buffer.toString('utf-8'),
       truncated: stats.size > MAX_FILE_PREVIEW_BYTES,
     });

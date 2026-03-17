@@ -71,3 +71,10 @@ export interface WatchFolderEntry {
   targetName: string;
   kind: 'default' | 'custom' | 'legacy';
 }
+
+export interface ConversationFilePreview {
+  filePath: string;
+  editorPath?: string;
+  content: string;
+  truncated: boolean;
+}

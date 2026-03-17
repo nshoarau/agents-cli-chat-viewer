@@ -1,9 +1,12 @@
 import React, { useEffect } from 'react';
 import { CodeBlock } from './CodeBlock';
+import { buildEditorHref, type EditorOptionId } from './fileEditorLink';
 
 interface FileViewerModalProps {
   filePath: string;
   resolvedPath?: string;
+  editorPath?: string;
+  selectedEditor: EditorOptionId;
   content: string;
   truncated: boolean;
   isLoading: boolean;
@@ -11,17 +14,11 @@ interface FileViewerModalProps {
   onClose: () => void;
 }
 
-const isAbsolutePath = (value: string): boolean => value.startsWith('/') || /^[A-Za-z]:[\\/]/.test(value);
-
-const toVsCodeUri = (value: string): string => {
-  const normalizedPath = value.replace(/\\/g, '/');
-  const prefixedPath = normalizedPath.startsWith('/') ? normalizedPath : `/${normalizedPath}`;
-  return `vscode://file${encodeURI(prefixedPath)}`;
-};
-
 export const FileViewerModal: React.FC<FileViewerModalProps> = ({
   filePath,
   resolvedPath,
+  editorPath,
+  selectedEditor,
   content,
   truncated,
   isLoading,
@@ -29,7 +26,7 @@ export const FileViewerModal: React.FC<FileViewerModalProps> = ({
   onClose,
 }) => {
   const displayPath = resolvedPath ?? filePath;
-  const editorHref = resolvedPath && isAbsolutePath(resolvedPath) ? toVsCodeUri(resolvedPath) : null;
+  const editorHref = buildEditorHref(editorPath ?? resolvedPath, selectedEditor);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -61,7 +58,7 @@ export const FileViewerModal: React.FC<FileViewerModalProps> = ({
               <a
                 className="confirm-modal-button file-viewer-open-link"
                 href={editorHref}
-                title={`Open ${displayPath} in VS Code`}
+                title={`Open ${displayPath} in your configured editor`}
               >
                 Open in IDE
               </a>

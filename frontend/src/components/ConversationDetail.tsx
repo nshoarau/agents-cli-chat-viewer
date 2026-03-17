@@ -76,6 +76,7 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
   const [searchNavigationIndex, setSearchNavigationIndex] = useState<Record<string, number>>(
     initialPreferences.searchNavigationIndex
   );
+  const [editorSelection, setEditorSelection] = useState(initialPreferences.editorSelection);
   const [promptHighlightActive, setPromptHighlightActive] = useState<Record<string, boolean>>({});
   const [filePreviewPath, setFilePreviewPath] = useState<string | null>(null);
   const [filePreview, setFilePreview] = useState<ConversationFilePreview | null>(null);
@@ -95,10 +96,12 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
       searchQuery,
       promptNavigationIndex,
       searchNavigationIndex,
+      editorSelection,
       headerCollapsed: isHeaderCollapsed,
       sidebarCollapsed: isSidebarCollapsed,
     });
   }, [
+    editorSelection,
     agentActivityVisibility,
     isHeaderCollapsed,
     isSidebarCollapsed,
@@ -583,6 +586,7 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
         searchMatchCount={searchMatchIndexes.length}
         promptPosition={activePromptPosition + 1}
         promptCount={userPromptIndexes.length}
+        editorSelection={editorSelection}
         onSearchQueryChange={(value) => {
           setSearchQuery((current) => ({
             ...current,
@@ -601,6 +605,7 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
             [conversationId]: !(current[conversationId] ?? true),
           }))
         }
+        onEditorSelectionChange={setEditorSelection}
         onToggleHeaderCollapsed={() => setIsHeaderCollapsed((current) => !current)}
         onToggleSidebar={onToggleSidebar}
         onToggleFullScreen={() => {
@@ -656,6 +661,8 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
         <FileViewerModal
           filePath={filePreviewPath}
           resolvedPath={filePreview?.filePath}
+          editorPath={filePreview?.editorPath}
+          selectedEditor={editorSelection}
           content={filePreview?.content ?? ''}
           truncated={Boolean(filePreview?.truncated)}
           isLoading={isFilePreviewLoading}

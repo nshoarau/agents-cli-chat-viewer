@@ -107,6 +107,7 @@ describe('ConversationDetail file preview', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.localStorage.clear();
+    delete import.meta.env.VITE_EDITOR_URI_TEMPLATE;
   });
 
   it('loads and renders a file preview from session activity', async () => {
@@ -195,5 +196,47 @@ describe('ConversationDetail file preview', () => {
     );
 
     expect(await screen.findByText('export const fromPrompt = true;')).toBeInTheDocument();
+  });
+
+  it('uses the configured editor URI template for the IDE link', async () => {
+    import.meta.env.VITE_EDITOR_URI_TEMPLATE = 'cursor://file{{path}}';
+    vi.mocked(apiClient.get).mockResolvedValue({
+      data: {
+        filePath: '/tmp/viewer/src/app.ts',
+        content: 'console.log("preview");',
+        truncated: false,
+      },
+    } as never);
+
+    renderConversationDetail(makeConversation());
+
+    fireEvent.click(screen.getByRole('button', { name: /show activity/i }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'src/app.ts' })[0]);
+
+    const openLink = await screen.findByRole('link', { name: 'Open in IDE' });
+    expect(openLink).toHaveAttribute('href', 'cursor://file/tmp/viewer/src/app.ts');
+  });
+
+  it('updates the editor selection from the header menu', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      data: {
+        filePath: '/tmp/viewer/src/app.ts',
+        content: 'console.log("preview");',
+        truncated: false,
+      },
+    } as never);
+
+    renderConversationDetail(makeConversation());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editor' }));
+    fireEvent.change(screen.getByLabelText('Open file links with'), {
+      target: { value: 'zed' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /show activity/i }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'src/app.ts' })[0]);
+
+    const openLink = await screen.findByRole('link', { name: 'Open in IDE' });
+    expect(openLink).toHaveAttribute('href', 'zed://file/tmp/viewer/src/app.ts');
   });
 });

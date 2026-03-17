@@ -1,50 +1,63 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!--
+Sync Impact Report:
+- Version change: 0.0.0 → 1.0.0 (Initial release)
+- List of modified principles:
+  - PRINCIPLE_1: [NONE] → I. Multi-Agent Interoperability
+  - PRINCIPLE_2: [NONE] → II. Lightweight & Reactive Frontend
+  - PRINCIPLE_3: [NONE] → III. Idiomatic Excellence
+  - PRINCIPLE_4: [NONE] → IV. Pre-Implementation Evaluation
+  - PRINCIPLE_5: [NONE] → V. Privacy & Security by Design
+- Added sections:
+  - Technology Stack & Standards
+  - Development & Review Workflow
+- Removed sections: None
+- Templates requiring updates:
+  - .specify/templates/plan-template.md (✅ updated/verified - aligns with pre-eval principle)
+  - .specify/templates/spec-template.md (✅ updated/verified - aligns with requirement focus)
+  - .specify/templates/tasks-template.md (✅ updated/verified - aligns with testing discipline)
+- Follow-up TODOs: None
+-->
+
+# agents-cli-chat-viewer Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Multi-Agent Interoperability
+The application MUST provide a unified interface for reading and managing conversations from all major AI agents (Gemini, Claude, Codex). 
+**Rationale**: Users should not have to switch tools or contexts to manage different agent logs, ensuring a cohesive management experience.
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+### II. Lightweight & Reactive Frontend
+The frontend MUST be built with a "performance-first" mindset, ensuring quick load times and high responsiveness. 
+**Rationale**: A viewer must be faster than the tools it monitors to provide a seamless and non-intrusive experience.
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### III. Idiomatic Excellence
+Code MUST follow the established best practices and idiomatic patterns of the chosen language and framework. 
+**Rationale**: Adherence to community standards ensures long-term project health, maintainability, and easier onboarding for new contributors.
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+### IV. Pre-Implementation Evaluation
+Before any major feature or architectural change is implemented, at least two architectural options MUST be proposed and evaluated in the implementation plan. 
+**Rationale**: This ensures the "best" path is chosen based on project goals rather than simply the first one conceived.
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### V. Privacy & Security by Design
+As agent conversations often contain sensitive or proprietary data, the application MUST prioritize local-first processing and secure data handling. 
+**Rationale**: User trust is paramount when handling personal or professional agent interactions.
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+## Technology Stack & Standards
+The project will prioritize modern, lightweight web technologies. 
+- **Frontend**: React (TypeScript) or Next.js for maximum reactivity.
+- **Backend**: Minimal Node.js or Python if persistence is required.
+- **Testing**: TDD is encouraged for complex logic; integration tests are mandatory for contract changes.
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
-
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
-
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+## Development & Review Workflow
+Every feature starts with a Specification and an Implementation Plan. 
+- All PRs require at least one approval.
+- CI checks (linting, type-checking, tests) must pass before merging.
+- Complexity must be justified in the plan if it exceeds baseline patterns.
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
+This constitution supersedes all other informal practices. 
+- Amendments require a MAJOR version bump and a full project review. 
+- Minor wording changes or clarifications use PATCH bumps. 
+- New principles or expanded guidance use MINOR bumps.
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
-
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+**Version**: 1.0.0 | **Ratified**: 2026-03-16 | **Last Amended**: 2026-03-16

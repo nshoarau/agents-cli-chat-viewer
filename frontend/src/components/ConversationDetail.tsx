@@ -12,6 +12,9 @@ import {
   persistConversationDetailPreferences,
   toConversationExportFileStem,
 } from './conversationDetailUtils';
+import { buildConversationFileGroups } from './conversationFilesPanelUtils';
+import { ConversationFilesPanel } from './ConversationFilesPanel';
+import { ConversationFilesModal } from './ConversationFilesModal';
 import { FileViewerModal } from './FileViewerModal';
 
 interface ConversationDetailProps {
@@ -66,6 +69,9 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
   const [agentActivityVisibility, setAgentActivityVisibility] = useState<Record<string, boolean>>(
     initialPreferences.agentActivityVisibility
   );
+  const [filesPanelVisibility, setFilesPanelVisibility] = useState<Record<string, boolean>>(
+    initialPreferences.filesPanelVisibility
+  );
   const [promptNavigationIndex, setPromptNavigationIndex] = useState<Record<string, number>>(
     initialPreferences.promptNavigationIndex
   );
@@ -81,6 +87,7 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
   const [jetbrainsProjectName, setJetbrainsProjectName] = useState(initialPreferences.jetbrainsProjectName);
   const [promptHighlightActive, setPromptHighlightActive] = useState<Record<string, boolean>>({});
   const [filePreviewPath, setFilePreviewPath] = useState<string | null>(null);
+  const [isFilesModalOpen, setIsFilesModalOpen] = useState(false);
   const [filePreview, setFilePreview] = useState<ConversationFilePreview | null>(null);
   const [filePreviewError, setFilePreviewError] = useState<string | null>(null);
   const [isFilePreviewLoading, setIsFilePreviewLoading] = useState(false);
@@ -95,6 +102,7 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
     persistConversationDetailPreferences({
       sessionActivityVisibility,
       agentActivityVisibility,
+      filesPanelVisibility,
       searchQuery,
       promptNavigationIndex,
       searchNavigationIndex,
@@ -109,6 +117,7 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
     jetbrainsProduct,
     jetbrainsProjectName,
     agentActivityVisibility,
+    filesPanelVisibility,
     isHeaderCollapsed,
     isSidebarCollapsed,
     promptNavigationIndex,
@@ -345,6 +354,10 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
 
     return nextActivities;
   })();
+  const conversationFileGroups = useMemo(
+    () => buildConversationFileGroups(conversation),
+    [conversation]
+  );
   const rowProps = {
     messages: conversationMessages,
     searchHighlightQuery: normalizedSearchQuery,
@@ -367,6 +380,7 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
   };
 
   const showSessionActivity = sessionActivityVisibility[conversationId] ?? true;
+  const isFilesPanelExpanded = filesPanelVisibility[conversationId] ?? false;
   const agentActivityKeys = Object.keys(agentActivities).filter(
     (key) => agentActivities[Number(key)]?.toolCalls.length > 0
   );
@@ -655,6 +669,20 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
         disablePreviousPrompt={activePromptPosition === 0}
         disableNextPrompt={activePromptPosition >= userPromptIndexes.length - 1}
       />
+      <ConversationFilesPanel
+        groups={conversationFileGroups}
+        isExpanded={isFilesPanelExpanded}
+        onOpenFullList={() => setIsFilesModalOpen(true)}
+        onToggleExpanded={() =>
+          setFilesPanelVisibility((current) => ({
+            ...current,
+            [conversationId]: !(current[conversationId] ?? false),
+          }))
+        }
+        onOpenFile={(filePath) => {
+          setFilePreviewPath(filePath);
+        }}
+      />
       <div className="message-list">
         <List
           className="message-list-virtualized"
@@ -687,6 +715,16 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
             setFilePreviewError(null);
             setIsFilePreviewLoading(false);
           }}
+        />
+      ) : null}
+      {isFilesModalOpen ? (
+        <ConversationFilesModal
+          groups={conversationFileGroups}
+          onOpenFile={(filePath) => {
+            setIsFilesModalOpen(false);
+            setFilePreviewPath(filePath);
+          }}
+          onClose={() => setIsFilesModalOpen(false)}
         />
       ) : null}
     </div>

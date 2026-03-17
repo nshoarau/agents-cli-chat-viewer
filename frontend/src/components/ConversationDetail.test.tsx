@@ -1,7 +1,7 @@
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConversationDetail } from './ConversationDetail';
 import { apiClient } from '../services/apiClient';
@@ -283,5 +283,97 @@ describe('ConversationDetail file preview', () => {
       'href',
       'jetbrains://php-storm/navigate/reference?project=UnlinkIt&path=CLAUDE.md'
     );
+  });
+
+  it('shows a files panel grouped by folder with source badges', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      data: {
+        filePath: '/tmp/viewer/src/app.ts',
+        content: 'console.log("from files panel");',
+        truncated: false,
+      },
+    } as never);
+
+    renderConversationDetail(
+      makeConversation({
+        messages: [
+          {
+            sender: 'user',
+            content: 'Inspect [app.ts](src/app.ts) and src/utils/date.ts.',
+            timestamp: '2026-03-17T12:00:00.000Z',
+          },
+          {
+            sender: 'agent',
+            content: 'Updated src/app.ts.',
+            timestamp: '2026-03-17T12:00:02.000Z',
+          },
+        ],
+        sessionActivity: {
+          commands: ['cat src/app.ts'],
+          filesTouched: ['src/app.ts', 'README.md'],
+          toolCalls: [
+            {
+              id: 'tool-1',
+              name: 'read_file',
+              kind: 'read',
+              timestamp: '2026-03-17T12:00:01.000Z',
+              filePath: 'src/app.ts',
+            },
+          ],
+        },
+      })
+    );
+
+    const filesRegion = screen.getByRole('region', { name: 'Files' });
+    expect(within(filesRegion).queryByText('src')).not.toBeInTheDocument();
+
+    fireEvent.click(within(filesRegion).getByRole('button', { name: 'Show Files (3)' }));
+
+    expect(within(filesRegion).getByText('src')).toBeInTheDocument();
+    expect(within(filesRegion).getByText('(root)')).toBeInTheDocument();
+    expect(within(filesRegion).getByText('Both')).toBeInTheDocument();
+    expect(within(filesRegion).getByText('Prompt')).toBeInTheDocument();
+    expect(within(filesRegion).getByText('Activity')).toBeInTheDocument();
+
+    fireEvent.click(within(filesRegion).getByRole('button', { name: 'src/app.ts' }));
+
+    expect(await screen.findByRole('dialog', { name: 'File Preview' })).toBeInTheDocument();
+    expect(await screen.findByText('console.log("from files panel");')).toBeInTheDocument();
+  });
+
+  it('keeps the files panel collapsed by default and toggles it open', () => {
+    renderConversationDetail(makeConversation());
+
+    const filesRegion = screen.getByRole('region', { name: 'Files' });
+    const toggleButton = within(filesRegion).getByRole('button', { name: 'Show Files (1)' });
+
+    expect(toggleButton).toHaveAttribute('aria-expanded', 'false');
+    expect(within(filesRegion).queryByText('src')).not.toBeInTheDocument();
+
+    fireEvent.click(toggleButton);
+
+    expect(within(filesRegion).getByText('src')).toBeInTheDocument();
+    expect(within(filesRegion).getByRole('button', { name: 'Hide Files' })).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('opens the full files list in a modal and previews a file from there', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      data: {
+        filePath: '/tmp/viewer/src/app.ts',
+        content: 'console.log("from files modal");',
+        truncated: false,
+      },
+    } as never);
+
+    renderConversationDetail(makeConversation());
+
+    const filesRegion = screen.getByRole('region', { name: 'Files' });
+    fireEvent.click(within(filesRegion).getByRole('button', { name: 'Open Full List' }));
+
+    const filesModal = await screen.findByRole('dialog', { name: 'All Files' });
+    fireEvent.click(within(filesModal).getByRole('button', { name: 'src/app.ts' }));
+
+    expect(await screen.findByRole('dialog', { name: 'File Preview' })).toBeInTheDocument();
+    expect(await screen.findByText('console.log("from files modal");')).toBeInTheDocument();
   });
 });

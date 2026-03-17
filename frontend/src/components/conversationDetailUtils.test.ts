@@ -64,6 +64,7 @@ describe('conversationDetailUtils', () => {
     const preferences = {
       sessionActivityVisibility: { 'conv-1': false },
       agentActivityVisibility: { 'conv-1:2': true },
+      filesPanelVisibility: { 'conv-1': true },
       searchQuery: { 'conv-1': 'retry' },
       promptNavigationIndex: { 'conv-1': 1 },
       searchNavigationIndex: { 'conv-1': 2 },

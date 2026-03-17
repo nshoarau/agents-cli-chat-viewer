@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../services/apiClient';
 import type { Conversation } from '../types';
@@ -6,6 +6,8 @@ import type { Conversation } from '../types';
 interface ConversationActionsProps {
   conversation: Conversation;
 }
+
+type PendingAction = 'toggle-status' | 'delete' | null;
 
 const ArchiveIcon: React.FC = () => (
   <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -36,6 +38,42 @@ const DeleteIcon: React.FC = () => (
 
 export const ConversationActions: React.FC<ConversationActionsProps> = ({ conversation }) => {
   const queryClient = useQueryClient();
+  const [pendingAction, setPendingAction] = useState<PendingAction>(null);
+
+  const isArchiveAction = conversation.status === 'active';
+  const confirmCopy = useMemo(
+    () =>
+      pendingAction === 'delete'
+        ? {
+            title: 'Delete Conversation?',
+            description:
+              'This permanently deletes the conversation file from disk. This action cannot be undone.',
+            confirmLabel: 'Delete',
+          }
+        : {
+            title: isArchiveAction ? 'Archive Conversation?' : 'Restore Conversation?',
+            description: isArchiveAction
+              ? 'This will hide the conversation from the default active view until you restore it.'
+              : 'This will return the conversation to the active view.',
+            confirmLabel: isArchiveAction ? 'Archive' : 'Restore',
+          },
+    [isArchiveAction, pendingAction]
+  );
+
+  useEffect(() => {
+    if (!pendingAction) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setPendingAction(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [pendingAction]);
 
   const toggleStatusMutation = useMutation({
     mutationFn: async () => {
@@ -43,6 +81,7 @@ export const ConversationActions: React.FC<ConversationActionsProps> = ({ conver
       await apiClient.patch(`/conversations/${conversation.id}/status`, { status: newStatus });
     },
     onSuccess: () => {
+      setPendingAction(null);
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
       queryClient.invalidateQueries({ queryKey: ['conversation', conversation.id] });
     },
@@ -50,38 +89,86 @@ export const ConversationActions: React.FC<ConversationActionsProps> = ({ conver
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
-      if (window.confirm('Are you sure you want to delete this conversation file?')) {
-        await apiClient.delete(`/conversations/${conversation.id}`);
-      }
+      await apiClient.delete(`/conversations/${conversation.id}`);
     },
     onSuccess: () => {
+      setPendingAction(null);
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
       // Reset selection if possible via a parent callback, but for now just refresh
     },
   });
 
+  const isConfirmPending = toggleStatusMutation.isPending || deleteMutation.isPending;
+
+  const handleConfirm = () => {
+    if (pendingAction === 'delete') {
+      deleteMutation.mutate();
+      return;
+    }
+
+    if (pendingAction === 'toggle-status') {
+      toggleStatusMutation.mutate();
+    }
+  };
+
   return (
-    <div className="conversation-actions">
-      <button
-        type="button"
-        onClick={() => toggleStatusMutation.mutate()}
-        disabled={toggleStatusMutation.isPending}
-        className="conversation-action-button"
-        aria-label={conversation.status === 'active' ? 'Archive conversation' : 'Restore conversation'}
-        title={conversation.status === 'active' ? 'Archive conversation' : 'Restore conversation'}
-      >
-        {conversation.status === 'active' ? <ArchiveIcon /> : <RestoreIcon />}
-      </button>
-      <button
-        type="button"
-        onClick={() => deleteMutation.mutate()}
-        disabled={deleteMutation.isPending}
-        className="conversation-action-button btn-delete"
-        aria-label="Delete conversation"
-        title="Delete conversation"
-      >
-        <DeleteIcon />
-      </button>
-    </div>
+    <>
+      <div className="conversation-actions">
+        <button
+          type="button"
+          onClick={() => setPendingAction('toggle-status')}
+          disabled={toggleStatusMutation.isPending}
+          className="conversation-action-button"
+          aria-label={conversation.status === 'active' ? 'Archive conversation' : 'Restore conversation'}
+          title={conversation.status === 'active' ? 'Archive conversation' : 'Restore conversation'}
+        >
+          {conversation.status === 'active' ? <ArchiveIcon /> : <RestoreIcon />}
+        </button>
+        <button
+          type="button"
+          onClick={() => setPendingAction('delete')}
+          disabled={deleteMutation.isPending}
+          className="conversation-action-button btn-delete"
+          aria-label="Delete conversation"
+          title="Delete conversation"
+        >
+          <DeleteIcon />
+        </button>
+      </div>
+      {pendingAction ? (
+        <div className="confirm-modal-overlay" onClick={() => setPendingAction(null)}>
+          <div
+            className="confirm-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="confirm-modal-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 id="confirm-modal-title">{confirmCopy.title}</h3>
+            <p>{confirmCopy.description}</p>
+            <div className="confirm-modal-actions">
+              <button
+                type="button"
+                className="confirm-modal-button"
+                onClick={() => setPendingAction(null)}
+                disabled={isConfirmPending}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={`confirm-modal-button confirm-modal-button-primary ${
+                  pendingAction === 'delete' ? 'danger' : ''
+                }`}
+                onClick={handleConfirm}
+                disabled={isConfirmPending}
+              >
+                {isConfirmPending ? 'Working...' : confirmCopy.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 };

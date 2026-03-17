@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
 import { apiClient } from '../services/apiClient';
@@ -12,6 +12,13 @@ import { useConversationStore } from '../store/useConversationStore';
 import { WatchFoldersPanel } from './WatchFoldersPanel';
 
 const CONVERSATIONS_PAGE_SIZE = 200;
+const TOAST_DURATION_MS = 2600;
+
+interface ToastState {
+  id: number;
+  tone: 'success' | 'error' | 'info';
+  message: string;
+}
 
 const getErrorMessage = (error: unknown): string => {
   if (error instanceof AxiosError) {
@@ -28,6 +35,7 @@ const getErrorMessage = (error: unknown): string => {
 export const Dashboard: React.FC = () => {
   const [selectedId, setSelectedId] = useState<string | undefined>();
   const [isWatchFoldersOpen, setIsWatchFoldersOpen] = useState(false);
+  const [toast, setToast] = useState<ToastState | null>(null);
   const { showArchived, searchQuery, selectedAgent } = useConversationStore();
 
   useLogUpdates();
@@ -71,6 +79,18 @@ export const Dashboard: React.FC = () => {
   );
   const totalConversations = conversationPages?.pages[0]?.total ?? 0;
 
+  useEffect(() => {
+    if (!toast) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setToast((current) => (current?.id === toast.id ? null : current));
+    }, TOAST_DURATION_MS);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [toast]);
+
   // Filter list based on store and search query
   const filteredConversations = useMemo(() => {
     return conversations.filter((c) => {
@@ -96,6 +116,23 @@ export const Dashboard: React.FC = () => {
 
   const selectedConversation = conversations.find((item) => item.id === selectedId);
 
+  const showToast = (message: string, tone: ToastState['tone'] = 'success') => {
+    setToast({
+      id: Date.now(),
+      message,
+      tone,
+    });
+  };
+
+  const handleConversationDeleted = (deletedId: string) => {
+    const deletedIndex = filteredConversations.findIndex((item) => item.id === deletedId);
+    const fallbackConversation =
+      filteredConversations[deletedIndex + 1] ??
+      filteredConversations[deletedIndex - 1];
+
+    setSelectedId(fallbackConversation?.id);
+  };
+
   const { data: conversation, isLoading: isDetailLoading, error: detailError } = useQuery({
     queryKey: ['conversation', selectedId],
     queryFn: async () => {
@@ -113,19 +150,20 @@ export const Dashboard: React.FC = () => {
 
   return (
     <div className="dashboard-container">
-      <header className="dashboard-header">
-        <div className="header-left">
-          <h1>Agents CLI Chat Viewer</h1>
-        </div>
-        <div className="header-right">
-          <button className="btn-add-folder" onClick={() => setIsWatchFoldersOpen(true)}>
-            Watched Folders
-          </button>
-          <SearchBar />
-        </div>
-      </header>
       <main className="dashboard-content">
         <aside className="sidebar">
+          <div className="sidebar-utilities">
+            <div className="sidebar-filter-card sidebar-utility-card">
+              <div className="sidebar-filter-title">Search Conversations</div>
+              <SearchBar />
+            </div>
+            <div className="sidebar-filter-card sidebar-utility-card">
+              <div className="sidebar-filter-title">Workspace</div>
+              <button className="btn-add-folder sidebar-action-button" onClick={() => setIsWatchFoldersOpen(true)}>
+                Watched Folders
+              </button>
+            </div>
+          </div>
           <FilterBar />
           {selectedAgent === 'none' ? (
             <div className="empty-list">Choose an agent filter to load conversations.</div>
@@ -156,10 +194,20 @@ export const Dashboard: React.FC = () => {
           ) : detailError ? (
              <div className="detail-placeholder">Error: {getErrorMessage(detailError)}</div>
           ) : (
-            <ConversationDetail conversation={conversation!} isLoading={false} />
+            <ConversationDetail
+              conversation={conversation!}
+              isLoading={false}
+              onShowToast={showToast}
+              onConversationDeleted={handleConversationDeleted}
+            />
           )}
         </section>
       </main>
+      {toast ? (
+        <div className={`toast-notification toast-${toast.tone}`} role="status" aria-live="polite">
+          {toast.message}
+        </div>
+      ) : null}
       <WatchFoldersPanel
         isOpen={isWatchFoldersOpen}
         onClose={() => setIsWatchFoldersOpen(false)}

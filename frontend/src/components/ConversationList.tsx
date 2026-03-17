@@ -148,14 +148,14 @@ export const ConversationList: React.FC<ConversationListProps> = ({
       rowHeight={(index) => {
         const item = listItems[index];
         if (!('id' in item)) {
-          return item.kind === 'agent' ? 36 : 40;
+          return item.kind === 'agent' ? 32 : 36;
         }
 
-        return 85;
+        return 68;
       }}
       rowComponent={Row}
       rowProps={{}}
-      style={{ height: 'calc(100vh - 60px)', width: '100%' }}
+      style={{ height: '100%', width: '100%' }}
     />
   );
 };

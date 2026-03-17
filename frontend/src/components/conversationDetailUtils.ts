@@ -4,6 +4,7 @@ import type { ActivityToolCall, Conversation } from '../types';
 export interface ConversationDetailPreferences {
   sessionActivityVisibility: Record<string, boolean>;
   agentActivityVisibility: Record<string, boolean>;
+  filesPanelVisibility: Record<string, boolean>;
   searchQuery: Record<string, string>;
   promptNavigationIndex: Record<string, number>;
   searchNavigationIndex: Record<string, number>;
@@ -54,6 +55,7 @@ const normalizeNumberRecord = (value: unknown): Record<string, number> => {
 export const getDefaultConversationDetailPreferences = (): ConversationDetailPreferences => ({
   sessionActivityVisibility: {},
   agentActivityVisibility: {},
+  filesPanelVisibility: {},
   searchQuery: {},
   promptNavigationIndex: {},
   searchNavigationIndex: {},
@@ -83,6 +85,7 @@ export const loadConversationDetailPreferences = (): ConversationDetailPreferenc
     return {
       sessionActivityVisibility: normalizeBooleanRecord(parsed.sessionActivityVisibility),
       agentActivityVisibility: normalizeBooleanRecord(parsed.agentActivityVisibility),
+      filesPanelVisibility: normalizeBooleanRecord(parsed.filesPanelVisibility),
       searchQuery: normalizeStringRecord(parsed.searchQuery),
       promptNavigationIndex: normalizeNumberRecord(parsed.promptNavigationIndex),
       searchNavigationIndex: normalizeNumberRecord(parsed.searchNavigationIndex),

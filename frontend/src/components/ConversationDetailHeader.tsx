@@ -2,7 +2,12 @@ import React, { useEffect, useRef, useState } from 'react';
 import type { Conversation } from '../types';
 import { AgentIcon } from './AgentIcon';
 import { ConversationActions } from './ConversationActions';
-import { EDITOR_OPTIONS, type EditorOptionId } from './fileEditorLink';
+import {
+  EDITOR_OPTIONS,
+  JETBRAINS_PRODUCT_OPTIONS,
+  type EditorOptionId,
+  type JetBrainsProductId,
+} from './fileEditorLink';
 
 const EyeIcon = () => <span aria-hidden="true">◉</span>;
 const LayersIcon = () => <span aria-hidden="true">▥</span>;
@@ -26,6 +31,8 @@ interface ConversationDetailHeaderProps {
   promptPosition: number;
   promptCount: number;
   editorSelection: EditorOptionId;
+  jetbrainsProduct: JetBrainsProductId;
+  jetbrainsProjectName: string;
   onSearchQueryChange: (value: string) => void;
   onPreviousSearchMatch: () => void;
   onNextSearchMatch: () => void;
@@ -34,6 +41,8 @@ interface ConversationDetailHeaderProps {
   onToggleFullScreen: () => void;
   onToggleSessionActivity: () => void;
   onEditorSelectionChange: (value: EditorOptionId) => void;
+  onJetBrainsProductChange: (value: JetBrainsProductId) => void;
+  onJetBrainsProjectNameChange: (value: string) => void;
   onToggleAllActivities: () => void;
   onPreviousPrompt: () => void;
   onNextPrompt: () => void;
@@ -63,6 +72,8 @@ export const ConversationDetailHeader: React.FC<ConversationDetailHeaderProps> =
   promptPosition,
   promptCount,
   editorSelection,
+  jetbrainsProduct,
+  jetbrainsProjectName,
   onSearchQueryChange,
   onPreviousSearchMatch,
   onNextSearchMatch,
@@ -71,6 +82,8 @@ export const ConversationDetailHeader: React.FC<ConversationDetailHeaderProps> =
   onToggleFullScreen,
   onToggleSessionActivity,
   onEditorSelectionChange,
+  onJetBrainsProductChange,
+  onJetBrainsProjectNameChange,
   onToggleAllActivities,
   onPreviousPrompt,
   onNextPrompt,
@@ -209,6 +222,40 @@ export const ConversationDetailHeader: React.FC<ConversationDetailHeaderProps> =
                     </option>
                   ))}
                 </select>
+                {editorSelection === 'jetbrains' ? (
+                  <>
+                    <label className="editor-menu-label" htmlFor="jetbrains-product-selection">
+                      JetBrains product
+                    </label>
+                    <select
+                      id="jetbrains-product-selection"
+                      className="editor-menu-select"
+                      value={jetbrainsProduct}
+                      onChange={(event) => onJetBrainsProductChange(event.target.value as JetBrainsProductId)}
+                    >
+                      {JETBRAINS_PRODUCT_OPTIONS.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <label className="editor-menu-label" htmlFor="jetbrains-project-name">
+                      JetBrains project name
+                    </label>
+                    <input
+                      id="jetbrains-project-name"
+                      type="text"
+                      className="editor-menu-input"
+                      value={jetbrainsProjectName}
+                      onChange={(event) => onJetBrainsProjectNameChange(event.target.value)}
+                      placeholder="Optional"
+                    />
+                    <p className="editor-menu-hint">
+                      Set this to the project name already open in your JetBrains IDE. Leave it empty to open by
+                      path only.
+                    </p>
+                  </>
+                ) : null}
               </div>
             ) : null}
           </div>

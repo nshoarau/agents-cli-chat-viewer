@@ -903,9 +903,28 @@ body {
   font: inherit;
 }
 
-.editor-menu-select:focus-visible {
+.editor-menu-input {
+  width: 100%;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 9px 10px;
+  background: #0f172a;
+  color: #e2e8f0;
+  font: inherit;
+}
+
+.editor-menu-select:focus-visible,
+.editor-menu-input:focus-visible {
   outline: 1px solid #60a5fa;
   border-color: #60a5fa;
+}
+
+.editor-menu-hint {
+  margin: 0;
+  padding: 2px 4px 4px;
+  color: #94a3b8;
+  font-size: 0.74rem;
+  line-height: 1.4;
 }
 
 .export-menu-item {
@@ -1469,6 +1488,18 @@ body {
   display: inline-flex;
   align-items: center;
   text-decoration: none;
+}
+
+.file-viewer-copy-button.is-copied {
+  border-color: #34d399;
+  background: rgba(5, 150, 105, 0.22);
+  color: #ecfdf5;
+}
+
+.file-viewer-copy-button.is-error {
+  border-color: #f87171;
+  background: rgba(220, 38, 38, 0.18);
+  color: #fef2f2;
 }
 
 .file-viewer-content {

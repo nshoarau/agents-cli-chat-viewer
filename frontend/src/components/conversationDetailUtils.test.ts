@@ -68,6 +68,8 @@ describe('conversationDetailUtils', () => {
       promptNavigationIndex: { 'conv-1': 1 },
       searchNavigationIndex: { 'conv-1': 2 },
       editorSelection: 'cursor' as const,
+      jetbrainsProduct: 'php-storm' as const,
+      jetbrainsProjectName: 'UnlinkIt',
       headerCollapsed: true,
       sidebarCollapsed: true,
     };

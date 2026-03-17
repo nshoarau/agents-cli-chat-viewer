@@ -1,4 +1,4 @@
-import type { EditorOptionId } from './fileEditorLink';
+import type { EditorOptionId, JetBrainsProductId } from './fileEditorLink';
 import type { ActivityToolCall, Conversation } from '../types';
 
 export interface ConversationDetailPreferences {
@@ -8,6 +8,8 @@ export interface ConversationDetailPreferences {
   promptNavigationIndex: Record<string, number>;
   searchNavigationIndex: Record<string, number>;
   editorSelection: EditorOptionId;
+  jetbrainsProduct: JetBrainsProductId;
+  jetbrainsProjectName: string;
   headerCollapsed: boolean;
   sidebarCollapsed: boolean;
 }
@@ -56,6 +58,8 @@ export const getDefaultConversationDetailPreferences = (): ConversationDetailPre
   promptNavigationIndex: {},
   searchNavigationIndex: {},
   editorSelection: 'default',
+  jetbrainsProduct: 'idea',
+  jetbrainsProjectName: '',
   headerCollapsed: false,
   sidebarCollapsed: false,
 });
@@ -91,6 +95,15 @@ export const loadConversationDetailPreferences = (): ConversationDetailPreferenc
           || parsed.editorSelection === 'jetbrains'
           ? parsed.editorSelection
           : 'default',
+      jetbrainsProduct:
+        parsed.jetbrainsProduct === 'php-storm' ||
+        parsed.jetbrainsProduct === 'web-storm' ||
+        parsed.jetbrainsProduct === 'pycharm' ||
+        parsed.jetbrainsProduct === 'goland' ||
+        parsed.jetbrainsProduct === 'rubymine'
+          ? parsed.jetbrainsProduct
+          : 'idea',
+      jetbrainsProjectName: typeof parsed.jetbrainsProjectName === 'string' ? parsed.jetbrainsProjectName : '',
       headerCollapsed: parsed.headerCollapsed === true,
       sidebarCollapsed: parsed.sidebarCollapsed === true,
     };

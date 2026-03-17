@@ -77,6 +77,8 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
     initialPreferences.searchNavigationIndex
   );
   const [editorSelection, setEditorSelection] = useState(initialPreferences.editorSelection);
+  const [jetbrainsProduct, setJetbrainsProduct] = useState(initialPreferences.jetbrainsProduct);
+  const [jetbrainsProjectName, setJetbrainsProjectName] = useState(initialPreferences.jetbrainsProjectName);
   const [promptHighlightActive, setPromptHighlightActive] = useState<Record<string, boolean>>({});
   const [filePreviewPath, setFilePreviewPath] = useState<string | null>(null);
   const [filePreview, setFilePreview] = useState<ConversationFilePreview | null>(null);
@@ -97,11 +99,15 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
       promptNavigationIndex,
       searchNavigationIndex,
       editorSelection,
+      jetbrainsProduct,
+      jetbrainsProjectName,
       headerCollapsed: isHeaderCollapsed,
       sidebarCollapsed: isSidebarCollapsed,
     });
   }, [
     editorSelection,
+    jetbrainsProduct,
+    jetbrainsProjectName,
     agentActivityVisibility,
     isHeaderCollapsed,
     isSidebarCollapsed,
@@ -348,6 +354,7 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
     agentActivities,
     agentActivityVisibility,
     conversationId,
+    projectPath: conversation?.projectPath,
     onToggleActivity: (index: number) =>
       setAgentActivityVisibility((current) => ({
         ...current,
@@ -587,6 +594,8 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
         promptPosition={activePromptPosition + 1}
         promptCount={userPromptIndexes.length}
         editorSelection={editorSelection}
+        jetbrainsProduct={jetbrainsProduct}
+        jetbrainsProjectName={jetbrainsProjectName}
         onSearchQueryChange={(value) => {
           setSearchQuery((current) => ({
             ...current,
@@ -606,6 +615,8 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
           }))
         }
         onEditorSelectionChange={setEditorSelection}
+        onJetBrainsProductChange={setJetbrainsProduct}
+        onJetBrainsProjectNameChange={setJetbrainsProjectName}
         onToggleHeaderCollapsed={() => setIsHeaderCollapsed((current) => !current)}
         onToggleSidebar={onToggleSidebar}
         onToggleFullScreen={() => {
@@ -663,6 +674,9 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
           resolvedPath={filePreview?.filePath}
           editorPath={filePreview?.editorPath}
           selectedEditor={editorSelection}
+          jetbrainsProduct={jetbrainsProduct}
+          jetbrainsProjectName={jetbrainsProjectName}
+          projectPath={conversation.projectPath}
           content={filePreview?.content ?? ''}
           truncated={Boolean(filePreview?.truncated)}
           isLoading={isFilePreviewLoading}

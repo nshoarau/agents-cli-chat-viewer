@@ -22,8 +22,14 @@ describe('buildEditorHref', () => {
 
   it('supports explicit editor selections', () => {
     expect(buildEditorHref('/tmp/project/src/app.ts', 'cursor')).toBe('cursor://file/tmp/project/src/app.ts');
-    expect(buildEditorHref('/tmp/project/src/app.ts', 'jetbrains')).toBe(
-      'jetbrains://idea/navigate/reference?path=%2Ftmp%2Fproject%2Fsrc%2Fapp.ts'
+    expect(
+      buildEditorHref('/tmp/project/CLAUDE.md', 'jetbrains', {
+        jetbrainsProduct: 'php-storm',
+        jetbrainsProjectName: 'UnlinkIt',
+        projectPath: '/tmp/project',
+      })
+    ).toBe(
+      'jetbrains://php-storm/navigate/reference?project=UnlinkIt&path=CLAUDE.md'
     );
     expect(buildEditorHref('/tmp/project/src/app.ts', 'none')).toBeNull();
   });
@@ -32,5 +38,21 @@ describe('buildEditorHref', () => {
     expect(buildEditorHref('\\\\wsl.localhost\\Ubuntu-24.04\\home\\me\\src\\app.ts', 'vscode')).toBe(
       'vscode://file//wsl.localhost/Ubuntu-24.04/home/me/src/app.ts'
     );
+    expect(
+      buildEditorHref('\\\\wsl.localhost\\Ubuntu-24.04\\home\\me\\src\\app.ts', 'jetbrains', {
+        jetbrainsProjectName: 'Viewer',
+      })
+    ).toBe(
+      'jetbrains://idea/navigate/reference?project=Viewer&path=%5C%5Cwsl.localhost%5CUbuntu-24.04%5Chome%5Cme%5Csrc%5Capp.ts'
+    );
+  });
+
+  it('omits the JetBrains project parameter when no project name is set', () => {
+    expect(
+      buildEditorHref('/tmp/project/CLAUDE.md', 'jetbrains', {
+        jetbrainsProduct: 'php-storm',
+        projectPath: '/tmp/project',
+      })
+    ).toBe('jetbrains://php-storm/navigate/reference?path=CLAUDE.md');
   });
 });

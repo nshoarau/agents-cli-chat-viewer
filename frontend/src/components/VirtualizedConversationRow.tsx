@@ -6,6 +6,7 @@ import { ConversationMessageBubble } from './ConversationMessageBubble';
 
 export interface VirtualizedConversationRowData {
   messages: Message[];
+  searchHighlightQuery: string;
   activePromptIndex?: number;
   activeSearchTargetIndex?: number;
   showSessionActivity: boolean;
@@ -33,6 +34,7 @@ export const VirtualizedConversationRow: React.FC<VirtualizedConversationRowProp
   index,
   style,
   messages,
+  searchHighlightQuery,
   activePromptIndex,
   activeSearchTargetIndex,
   showSessionActivity,
@@ -51,6 +53,7 @@ export const VirtualizedConversationRow: React.FC<VirtualizedConversationRowProp
       <ConversationMessageBubble
         message={message}
         messageIndex={index}
+        searchHighlightQuery={searchHighlightQuery}
         isPromptTarget={message.sender === 'user' && index === activePromptIndex}
         isActiveSearchTarget={index === activeSearchTargetIndex}
         showSessionActivity={showSessionActivity}

@@ -6,6 +6,7 @@ dist/
 build/
 .next/
 out/
+frontend/.vite/
 
 # Logs
 *.log
@@ -32,3 +33,6 @@ coverage/
 
 # OS files
 Thumbs.db
+
+# Runtime caches
+backend/config/conversation-index-cache.json

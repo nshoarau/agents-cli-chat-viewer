@@ -145,9 +145,22 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
       const listElement = listRef.current?.element;
       const target = listElement?.querySelector<HTMLElement>(`[data-message-index="${messageIndex}"]`);
 
-      if (target) {
-        target.scrollIntoView({
-          block: align,
+      if (listElement && target) {
+        const listBounds = listElement.getBoundingClientRect();
+        const targetBounds = target.getBoundingClientRect();
+        const currentScrollTop = listElement.scrollTop;
+        const targetTop = currentScrollTop + (targetBounds.top - listBounds.top);
+        const targetCenter = targetTop - (listElement.clientHeight - targetBounds.height) / 2;
+        const maxScrollTop = Math.max(listElement.scrollHeight - listElement.clientHeight, 0);
+        const nextScrollTop =
+          align === 'center'
+            ? targetCenter
+            : align === 'end'
+              ? targetTop - (listElement.clientHeight - targetBounds.height)
+              : targetTop;
+
+        listElement.scrollTo({
+          top: Math.min(Math.max(nextScrollTop, 0), maxScrollTop),
           behavior,
         });
         exactScrollFrameRef.current = null;
@@ -269,6 +282,7 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
   const activeSearchTargetIndex = searchMatchIndexes[activeSearchPosition];
   const rowProps = {
     messages: conversationMessages,
+    searchHighlightQuery: normalizedSearchQuery,
     activePromptIndex,
     activeSearchTargetIndex,
     showSessionActivity: sessionActivityVisibility[conversationId] ?? true,

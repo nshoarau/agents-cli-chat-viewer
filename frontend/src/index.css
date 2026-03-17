@@ -1305,6 +1305,17 @@ body {
   outline-offset: 2px;
 }
 
+.code-block-fallback {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 0 0 8px 8px;
+  background: #0f172a;
+  color: #dbeafe;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+}
+
 .message-search-highlight {
   padding: 0.08rem 0.28rem;
   border-radius: 0.3rem;

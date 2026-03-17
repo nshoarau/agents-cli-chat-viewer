@@ -7,6 +7,8 @@ import { VirtualizedConversationRow } from './VirtualizedConversationRow';
 interface ConversationDetailProps {
   conversation?: Conversation;
   isLoading: boolean;
+  onShowToast: (message: string, tone?: 'success' | 'error' | 'info') => void;
+  onConversationDeleted: (deletedId: string) => void;
 }
 
 interface AgentActivityGroup {
@@ -33,6 +35,8 @@ const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\
 export const ConversationDetail: React.FC<ConversationDetailProps> = ({
   conversation,
   isLoading,
+  onShowToast,
+  onConversationDeleted,
 }) => {
   const conversationId = conversation?.id ?? '__no-conversation__';
   const lastAutoScrolledSearchRef = useRef<Record<string, string>>({});
@@ -294,6 +298,7 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
         ...current,
         [`${conversationId}:${index}`]: !current[`${conversationId}:${index}`],
       })),
+    onShowToast,
   };
 
   if (isLoading) {
@@ -370,6 +375,8 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
     <div className="conversation-detail">
       <ConversationDetailHeader
         conversation={conversation}
+        onShowToast={onShowToast}
+        onConversationDeleted={onConversationDeleted}
         hasSessionActivity={Boolean(conversation.sessionActivity)}
         showSessionActivity={showSessionActivity}
         hasExpandableActivities={agentActivityKeys.length > 0}

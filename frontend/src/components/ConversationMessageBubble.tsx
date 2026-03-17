@@ -9,6 +9,7 @@ interface ConversationMessageBubbleProps {
   message: Message;
   messageIndex: number;
   searchHighlightQuery?: string;
+  onShowToast: (message: string, tone?: 'success' | 'error' | 'info') => void;
   isPromptTarget: boolean;
   isActiveSearchTarget: boolean;
   showSessionActivity: boolean;
@@ -114,6 +115,7 @@ export const ConversationMessageBubble: React.FC<ConversationMessageBubbleProps>
   message,
   messageIndex,
   searchHighlightQuery,
+  onShowToast,
   isPromptTarget,
   isActiveSearchTarget,
   showSessionActivity,
@@ -143,8 +145,10 @@ export const ConversationMessageBubble: React.FC<ConversationMessageBubbleProps>
     try {
       await navigator.clipboard.writeText(message.content);
       setCopyState('copied');
+      onShowToast('Message copied.');
     } catch {
       setCopyState('error');
+      onShowToast('Failed to copy message.', 'error');
     }
 
     if (resetTimerRef.current !== null) {

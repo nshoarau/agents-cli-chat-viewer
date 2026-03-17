@@ -5,6 +5,8 @@ import type { Conversation } from '../types';
 
 interface ConversationActionsProps {
   conversation: Conversation;
+  onShowToast: (message: string, tone?: 'success' | 'error' | 'info') => void;
+  onConversationDeleted: (deletedId: string) => void;
 }
 
 type PendingAction = 'toggle-status' | 'delete' | null;
@@ -36,7 +38,11 @@ const DeleteIcon: React.FC = () => (
   </svg>
 );
 
-export const ConversationActions: React.FC<ConversationActionsProps> = ({ conversation }) => {
+export const ConversationActions: React.FC<ConversationActionsProps> = ({
+  conversation,
+  onShowToast,
+  onConversationDeleted,
+}) => {
   const queryClient = useQueryClient();
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
 
@@ -82,8 +88,14 @@ export const ConversationActions: React.FC<ConversationActionsProps> = ({ conver
     },
     onSuccess: () => {
       setPendingAction(null);
+      onShowToast(
+        conversation.status === 'active' ? 'Conversation archived.' : 'Conversation restored.'
+      );
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
       queryClient.invalidateQueries({ queryKey: ['conversation', conversation.id] });
+    },
+    onError: () => {
+      onShowToast('Failed to update conversation status.', 'error');
     },
   });
 
@@ -93,8 +105,12 @@ export const ConversationActions: React.FC<ConversationActionsProps> = ({ conver
     },
     onSuccess: () => {
       setPendingAction(null);
+      onConversationDeleted(conversation.id);
+      onShowToast('Conversation deleted.');
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
-      // Reset selection if possible via a parent callback, but for now just refresh
+    },
+    onError: () => {
+      onShowToast('Failed to delete conversation.', 'error');
     },
   });
 

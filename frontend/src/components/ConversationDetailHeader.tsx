@@ -5,6 +5,8 @@ import { ConversationActions } from './ConversationActions';
 
 interface ConversationDetailHeaderProps {
   conversation: Conversation;
+  onShowToast: (message: string, tone?: 'success' | 'error' | 'info') => void;
+  onConversationDeleted: (deletedId: string) => void;
   hasSessionActivity: boolean;
   showSessionActivity: boolean;
   hasExpandableActivities: boolean;
@@ -29,6 +31,8 @@ interface ConversationDetailHeaderProps {
 
 export const ConversationDetailHeader: React.FC<ConversationDetailHeaderProps> = ({
   conversation,
+  onShowToast,
+  onConversationDeleted,
   hasSessionActivity,
   showSessionActivity,
   hasExpandableActivities,
@@ -54,7 +58,11 @@ export const ConversationDetailHeader: React.FC<ConversationDetailHeaderProps> =
     <div className="detail-header">
       <div className="header-top">
         <h2>{conversation.title}</h2>
-        <ConversationActions conversation={conversation} />
+        <ConversationActions
+          conversation={conversation}
+          onShowToast={onShowToast}
+          onConversationDeleted={onConversationDeleted}
+        />
       </div>
       <div className="detail-meta">
         <div className="detail-meta-primary">

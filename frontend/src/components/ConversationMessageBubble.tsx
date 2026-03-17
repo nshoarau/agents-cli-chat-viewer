@@ -4,6 +4,7 @@ import type { Components } from 'react-markdown';
 import type { ActivityToolCall, Message } from '../types';
 import { CodeBlock } from './CodeBlock';
 import { ConversationActivityPanel } from './ConversationActivityPanel';
+import { extractMessageFileReferences, isPreviewablePathReference } from './fileReferenceUtils';
 
 interface ConversationMessageBubbleProps {
   message: Message;
@@ -20,6 +21,7 @@ interface ConversationMessageBubbleProps {
   };
   isActivityExpanded: boolean;
   onToggleActivity: () => void;
+  onOpenFile: (filePath: string) => void;
 }
 
 const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -59,7 +61,10 @@ const highlightTextChildren = (children: React.ReactNode, query: string): React.
   });
 };
 
-const createMarkdownComponents = (searchHighlightQuery: string): Components => ({
+const createMarkdownComponents = (
+  searchHighlightQuery: string,
+  onOpenFile: (filePath: string) => void
+): Components => ({
   code({ className, children, ...props }) {
     const match = /language-(\w+)/.exec(className || '');
 
@@ -80,8 +85,25 @@ const createMarkdownComponents = (searchHighlightQuery: string): Components => (
   blockquote({ children, ...props }) {
     return <blockquote {...props}>{highlightTextChildren(children, searchHighlightQuery)}</blockquote>;
   },
-  a({ children, ...props }) {
-    return <a {...props}>{highlightTextChildren(children, searchHighlightQuery)}</a>;
+  a({ children, href, ...props }) {
+    if (href && isPreviewablePathReference(href)) {
+      return (
+        <button
+          type="button"
+          className="message-file-link"
+          onClick={() => onOpenFile(href)}
+          title={href}
+        >
+          {highlightTextChildren(children, searchHighlightQuery)}
+        </button>
+      );
+    }
+
+    return (
+      <a href={href} {...props}>
+        {highlightTextChildren(children, searchHighlightQuery)}
+      </a>
+    );
   },
   strong({ children, ...props }) {
     return <strong {...props}>{highlightTextChildren(children, searchHighlightQuery)}</strong>;
@@ -120,11 +142,13 @@ export const ConversationMessageBubble: React.FC<ConversationMessageBubbleProps>
   activity,
   isActivityExpanded,
   onToggleActivity,
+  onOpenFile,
 }) => {
   const hasActivity = message.sender === 'agent' && activity && activity.toolCalls.length > 0;
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
   const resetTimerRef = useRef<number | null>(null);
-  const markdownComponents = createMarkdownComponents(searchHighlightQuery ?? '');
+  const markdownComponents = createMarkdownComponents(searchHighlightQuery ?? '', onOpenFile);
+  const referencedFiles = extractMessageFileReferences(message.content);
 
   useEffect(() => {
     return () => {
@@ -192,6 +216,21 @@ export const ConversationMessageBubble: React.FC<ConversationMessageBubbleProps>
       <div className="message-content">
         <ReactMarkdown components={markdownComponents}>{message.content}</ReactMarkdown>
       </div>
+      {referencedFiles.length > 0 ? (
+        <div className="message-file-reference-list">
+          {referencedFiles.map((filePath) => (
+            <button
+              key={filePath}
+              type="button"
+              className="activity-chip activity-file-button"
+              onClick={() => onOpenFile(filePath)}
+              title={filePath}
+            >
+              {filePath}
+            </button>
+          ))}
+        </div>
+      ) : null}
       {showSessionActivity && hasActivity ? (
         <div className="message-activity-footer">
           <button type="button" className="btn-prompt-activity-toggle" onClick={onToggleActivity}>
@@ -204,6 +243,7 @@ export const ConversationMessageBubble: React.FC<ConversationMessageBubbleProps>
           commands={activity.commands}
           filesTouched={activity.filesTouched}
           toolCalls={activity.toolCalls}
+          onOpenFile={onOpenFile}
         />
       ) : null}
     </div>

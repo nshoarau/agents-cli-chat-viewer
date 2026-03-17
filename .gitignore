@@ -7,6 +7,8 @@ build/
 .next/
 out/
 frontend/.vite/
+frontend/playwright-report/
+frontend/test-results/
 
 # Logs
 *.log

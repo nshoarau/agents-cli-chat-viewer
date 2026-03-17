@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { extractMessageFileReferences, isPreviewablePathReference } from './fileReferenceUtils';
+import {
+  extractMessageFileReferences,
+  isPreviewablePathReference,
+  toPreviewablePathReference,
+} from './fileReferenceUtils';
 
 describe('fileReferenceUtils', () => {
   it('keeps file-like references and rejects folders, refs, and bare hosts', () => {
@@ -19,5 +23,16 @@ describe('fileReferenceUtils', () => {
     );
 
     expect(references).toEqual(['src/app.ts']);
+  });
+
+  it('normalizes anchored file references to plain file paths', () => {
+    expect(isPreviewablePathReference('src/app.ts#L12')).toBe(true);
+    expect(toPreviewablePathReference('src/app.ts#L12')).toBe('src/app.ts');
+
+    const references = extractMessageFileReferences(
+      'Review [src/app.ts](/workspace/src/app.ts#L12) and src/utils/date.ts#L4.'
+    );
+
+    expect(references).toEqual(['/workspace/src/app.ts#L12', 'src/utils/date.ts']);
   });
 });

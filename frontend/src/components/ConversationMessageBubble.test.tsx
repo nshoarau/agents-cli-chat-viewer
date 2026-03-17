@@ -114,4 +114,31 @@ describe('ConversationMessageBubble', () => {
     expect(screen.queryByRole('button', { name: 'src/components' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '127.0.0.1/api' })).not.toBeInTheDocument();
   });
+
+  it('shows compact display paths while keeping the full file target', () => {
+    const onOpenFile = vi.fn();
+
+    render(
+      <ConversationMessageBubble
+        message={makeMessage({
+          content: 'Inspect `/tmp/project/src/utils/math.ts`.',
+        })}
+        messageIndex={0}
+        onShowToast={vi.fn()}
+        isPromptTarget={false}
+        isActiveSearchTarget={false}
+        showSessionActivity={false}
+        isActivityExpanded={false}
+        onToggleActivity={vi.fn()}
+        projectPath="/tmp/project"
+        onOpenFile={onOpenFile}
+      />
+    );
+
+    const button = screen.getByRole('button', { name: 'src/utils/math.ts' });
+    expect(button).toHaveAttribute('title', '/tmp/project/src/utils/math.ts');
+
+    fireEvent.click(button);
+    expect(onOpenFile).toHaveBeenCalledWith('/tmp/project/src/utils/math.ts');
+  });
 });

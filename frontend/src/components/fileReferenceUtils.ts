@@ -15,6 +15,8 @@ const EXTENSIONLESS_FILE_NAMES = new Set([
   'jenkinsfile',
 ]);
 
+const stripPathSuffixes = (value: string): string => value.split(/[?#]/, 1)[0] ?? value;
+
 const normalizeCandidate = (value: string): string => value.trim().replace(/[),.:;!?]+$/, '');
 
 const isDomainLike = (value: string): boolean =>
@@ -36,18 +38,20 @@ const hasFileLikeBaseName = (value: string): boolean => {
 };
 
 export const isPreviewablePathReference = (value: string): boolean => {
+  const normalizedValue = normalizeCandidate(value);
+
   if (
-    !value ||
-    value.startsWith('http://') ||
-    value.startsWith('https://') ||
-    value.startsWith('mailto:') ||
-    value.startsWith('#') ||
-    isDomainLike(value)
+    !normalizedValue ||
+    normalizedValue.startsWith('http://') ||
+    normalizedValue.startsWith('https://') ||
+    normalizedValue.startsWith('mailto:') ||
+    normalizedValue.startsWith('#') ||
+    isDomainLike(normalizedValue)
   ) {
     return false;
   }
 
-  return hasFileLikeBaseName(value);
+  return hasFileLikeBaseName(normalizedValue);
 };
 
 export const extractMessageFileReferences = (content: string): string[] => {
@@ -71,3 +75,6 @@ export const extractMessageFileReferences = (content: string): string[] => {
 
   return [...references];
 };
+
+export const toPreviewablePathReference = (value: string): string =>
+  stripPathSuffixes(normalizeCandidate(value));

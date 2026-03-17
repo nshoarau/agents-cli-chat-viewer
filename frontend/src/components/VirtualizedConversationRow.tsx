@@ -21,7 +21,9 @@ export interface VirtualizedConversationRowData {
   >;
   agentActivityVisibility: Record<string, boolean>;
   conversationId: string;
+  projectPath?: string;
   onToggleActivity: (index: number) => void;
+  onOpenFile: (filePath: string) => void;
 }
 
 type VirtualizedConversationRowProps = RowComponentProps<VirtualizedConversationRowData>;
@@ -43,7 +45,9 @@ export function VirtualizedConversationRow({
   agentActivities,
   agentActivityVisibility,
   conversationId,
+  projectPath,
   onToggleActivity,
+  onOpenFile,
 }: VirtualizedConversationRowProps): React.JSX.Element | null {
   const message = messages[index];
   if (!message) {
@@ -63,6 +67,8 @@ export function VirtualizedConversationRow({
         activity={agentActivities[index]}
         isActivityExpanded={Boolean(agentActivityVisibility[`${conversationId}:${index}`])}
         onToggleActivity={() => onToggleActivity(index)}
+        projectPath={projectPath}
+        onOpenFile={onOpenFile}
       />
     </div>
   );

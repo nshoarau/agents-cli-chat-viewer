@@ -115,7 +115,9 @@ describe('ConversationDetail file preview', () => {
       data: {
         filePath: '/tmp/viewer/src/app.ts',
         content: 'console.log("preview");',
-        truncated: true,
+        truncated: false,
+        previewStatus: 'ready',
+        rawUrl: '/api/conversations/conv-preview/files/raw?path=src%2Fapp.ts',
       },
     } as never);
 
@@ -132,7 +134,10 @@ describe('ConversationDetail file preview', () => {
       })
     );
 
-    expect(await screen.findByText('Preview truncated to keep the viewer responsive.')).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'Open Raw' })).toHaveAttribute(
+      'href',
+      '/api/conversations/conv-preview/files/raw?path=src%2Fapp.ts'
+    );
     expect(screen.getByText('console.log("preview");')).toBeInTheDocument();
   });
 
@@ -156,6 +161,87 @@ describe('ConversationDetail file preview', () => {
     expect(
       await screen.findByText('File is not available for this conversation preview.')
     ).toBeInTheDocument();
+  });
+
+  it('shows structured preview status messages for binary files', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      data: {
+        filePath: '/tmp/viewer/image.bin',
+        content: '',
+        truncated: false,
+        previewStatus: 'binary',
+        previewMessage: 'Binary files cannot be previewed as text. Open the raw file instead.',
+        rawUrl: '/api/conversations/conv-preview/files/raw?path=image.bin',
+      },
+    } as never);
+
+    renderConversationDetail(
+      makeConversation({
+        sessionActivity: {
+          commands: ['cat image.bin'],
+          filesTouched: ['image.bin'],
+          toolCalls: [
+            {
+              id: 'tool-binary',
+              name: 'read_file',
+              kind: 'read',
+              timestamp: '2026-03-17T12:00:01.000Z',
+              filePath: 'image.bin',
+            },
+          ],
+        },
+      })
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /show activity/i }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'image.bin' })[0]);
+
+    expect(await screen.findByText('Binary files cannot be previewed as text. Open the raw file instead.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open Raw' })).toHaveAttribute(
+      'href',
+      '/api/conversations/conv-preview/files/raw?path=image.bin'
+    );
+    expect(screen.queryByText(/console\.log/)).not.toBeInTheDocument();
+  });
+
+  it('shows a raw fallback for oversized previews', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      data: {
+        filePath: '/tmp/viewer/large.txt',
+        content: '',
+        truncated: false,
+        previewStatus: 'too_large',
+        previewMessage: 'File is too large to preview inline. Open the raw file instead.',
+        rawUrl: '/api/conversations/conv-preview/files/raw?path=large.txt',
+      },
+    } as never);
+
+    renderConversationDetail(
+      makeConversation({
+        sessionActivity: {
+          commands: ['cat large.txt'],
+          filesTouched: ['large.txt'],
+          toolCalls: [
+            {
+              id: 'tool-large',
+              name: 'read_file',
+              kind: 'read',
+              timestamp: '2026-03-17T12:00:01.000Z',
+              filePath: 'large.txt',
+            },
+          ],
+        },
+      })
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /show activity/i }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'large.txt' })[0]);
+
+    expect(await screen.findByText('File is too large to preview inline. Open the raw file instead.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open Raw' })).toHaveAttribute(
+      'href',
+      '/api/conversations/conv-preview/files/raw?path=large.txt'
+    );
   });
 
   it('loads a file preview for a file referenced only in a prompt message', async () => {
@@ -339,6 +425,104 @@ describe('ConversationDetail file preview', () => {
 
     expect(await screen.findByRole('dialog', { name: 'File Preview' })).toBeInTheDocument();
     expect(await screen.findByText('console.log("from files panel");')).toBeInTheDocument();
+  });
+
+  it('uses the same canonical preview path from the files panel as the working message links', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      data: {
+        filePath: '/tmp/viewer/src/app.ts',
+        content: 'console.log("canonical");',
+        truncated: false,
+        previewStatus: 'ready',
+      },
+    } as never);
+
+    renderConversationDetail(
+      makeConversation({
+        messages: [
+          {
+            sender: 'user',
+            content: 'Inspect [app.ts](src/app.ts).',
+            timestamp: '2026-03-17T12:00:00.000Z',
+          },
+          {
+            sender: 'agent',
+            content: 'Updated /tmp/viewer/src/app.ts.',
+            timestamp: '2026-03-17T12:00:02.000Z',
+          },
+        ],
+        sessionActivity: {
+          commands: ['cat /tmp/viewer/src/app.ts'],
+          filesTouched: ['/tmp/viewer/src/app.ts'],
+          toolCalls: [
+            {
+              id: 'tool-abs',
+              name: 'read_file',
+              kind: 'read',
+              timestamp: '2026-03-17T12:00:01.000Z',
+              filePath: '/tmp/viewer/src/app.ts',
+            },
+          ],
+        },
+      })
+    );
+
+    const filesRegion = screen.getByRole('region', { name: 'Files' });
+    fireEvent.click(within(filesRegion).getByRole('button', { name: 'Show Files (1)' }));
+    fireEvent.click(within(filesRegion).getByRole('button', { name: 'src/app.ts' }));
+
+    await waitFor(() =>
+      expect(apiClient.get).toHaveBeenCalledWith('/conversations/conv-preview/files/content', {
+        params: { path: '/tmp/viewer/src/app.ts' },
+      })
+    );
+  });
+
+  it('prefers the working absolute message path over a relative activity path in the files panel', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      data: {
+        filePath: '/tmp/viewer/frontend/src/components/conversationFilesPanelUtils.ts',
+        content: 'export const ok = true;',
+        truncated: false,
+        previewStatus: 'ready',
+      },
+    } as never);
+
+    renderConversationDetail(
+      makeConversation({
+        projectPath: '/tmp/viewer/frontend',
+        messages: [
+          {
+            sender: 'user',
+            content: 'Inspect /tmp/viewer/frontend/src/components/conversationFilesPanelUtils.ts.',
+            timestamp: '2026-03-17T12:00:00.000Z',
+          },
+        ],
+        sessionActivity: {
+          commands: ['cat src/components/conversationFilesPanelUtils.ts'],
+          filesTouched: ['src/components/conversationFilesPanelUtils.ts'],
+          toolCalls: [
+            {
+              id: 'tool-rel',
+              name: 'read_file',
+              kind: 'read',
+              timestamp: '2026-03-17T12:00:01.000Z',
+              filePath: 'src/components/conversationFilesPanelUtils.ts',
+            },
+          ],
+        },
+      })
+    );
+
+    const filesRegion = screen.getByRole('region', { name: 'Files' });
+    fireEvent.click(within(filesRegion).getByRole('button', { name: 'Show Files (1)' }));
+    fireEvent.click(within(filesRegion).getByRole('button', { name: 'src/components/conversationFilesPanelUtils.ts' }));
+
+    await waitFor(() =>
+      expect(apiClient.get).toHaveBeenCalledWith('/conversations/conv-preview/files/content', {
+        params: { path: '/tmp/viewer/frontend/src/components/conversationFilesPanelUtils.ts' },
+      })
+    );
   });
 
   it('keeps the files panel collapsed by default and toggles it open', () => {

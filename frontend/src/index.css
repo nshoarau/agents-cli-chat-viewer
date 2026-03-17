@@ -1742,6 +1742,28 @@ body {
   color: #fecaca;
 }
 
+.file-viewer-status {
+  padding: 10px 12px;
+  border: 1px solid rgba(71, 85, 105, 0.6);
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.82);
+}
+
+.file-viewer-status.is-info {
+  border-color: rgba(96, 165, 250, 0.42);
+  color: #dbeafe;
+}
+
+.file-viewer-status.is-warning {
+  border-color: rgba(250, 204, 21, 0.36);
+  color: #fde68a;
+}
+
+.file-viewer-status.is-error {
+  border-color: rgba(248, 113, 113, 0.38);
+  color: #fecaca;
+}
+
 .prompt-activity-summary {
   margin-bottom: 14px;
   color: #94a3b8;

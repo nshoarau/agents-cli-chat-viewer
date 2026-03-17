@@ -77,4 +77,8 @@ export interface ConversationFilePreview {
   editorPath?: string;
   content: string;
   truncated: boolean;
+  previewStatus?: 'ready' | 'binary' | 'too_large' | 'encoding_error';
+  previewMessage?: string;
+  rawUrl?: string;
+  mimeType?: string;
 }

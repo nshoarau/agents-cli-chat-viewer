@@ -8,8 +8,10 @@ import { ConversationDetail } from './ConversationDetail';
 import { useLogUpdates } from '../hooks/useLogUpdates';
 import { FilterBar } from './FilterBar';
 import { SearchBar } from './SearchBar';
+import { ToastNotification } from './ToastNotification';
 import { useConversationStore } from '../store/useConversationStore';
 import { WatchFoldersPanel } from './WatchFoldersPanel';
+import { getNextConversationIdAfterDelete } from './dashboardUtils';
 
 const CONVERSATIONS_PAGE_SIZE = 200;
 const TOAST_DURATION_MS = 2600;
@@ -125,12 +127,7 @@ export const Dashboard: React.FC = () => {
   };
 
   const handleConversationDeleted = (deletedId: string) => {
-    const deletedIndex = filteredConversations.findIndex((item) => item.id === deletedId);
-    const fallbackConversation =
-      filteredConversations[deletedIndex + 1] ??
-      filteredConversations[deletedIndex - 1];
-
-    setSelectedId(fallbackConversation?.id);
+    setSelectedId(getNextConversationIdAfterDelete(filteredConversations, deletedId));
   };
 
   const { data: conversation, isLoading: isDetailLoading, error: detailError } = useQuery({
@@ -203,11 +200,7 @@ export const Dashboard: React.FC = () => {
           )}
         </section>
       </main>
-      {toast ? (
-        <div className={`toast-notification toast-${toast.tone}`} role="status" aria-live="polite">
-          {toast.message}
-        </div>
-      ) : null}
+      {toast ? <ToastNotification tone={toast.tone} message={toast.message} /> : null}
       <WatchFoldersPanel
         isOpen={isWatchFoldersOpen}
         onClose={() => setIsWatchFoldersOpen(false)}

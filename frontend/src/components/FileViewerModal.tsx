@@ -1,9 +1,15 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { CodeBlock } from './CodeBlock';
+import { buildEditorHref, type EditorOptionId, type JetBrainsProductId } from './fileEditorLink';
 
 interface FileViewerModalProps {
   filePath: string;
   resolvedPath?: string;
+  editorPath?: string;
+  selectedEditor: EditorOptionId;
+  jetbrainsProduct: JetBrainsProductId;
+  jetbrainsProjectName?: string;
+  projectPath?: string;
   content: string;
   truncated: boolean;
   isLoading: boolean;
@@ -11,17 +17,14 @@ interface FileViewerModalProps {
   onClose: () => void;
 }
 
-const isAbsolutePath = (value: string): boolean => value.startsWith('/') || /^[A-Za-z]:[\\/]/.test(value);
-
-const toVsCodeUri = (value: string): string => {
-  const normalizedPath = value.replace(/\\/g, '/');
-  const prefixedPath = normalizedPath.startsWith('/') ? normalizedPath : `/${normalizedPath}`;
-  return `vscode://file${encodeURI(prefixedPath)}`;
-};
-
 export const FileViewerModal: React.FC<FileViewerModalProps> = ({
   filePath,
   resolvedPath,
+  editorPath,
+  selectedEditor,
+  jetbrainsProduct,
+  jetbrainsProjectName,
+  projectPath,
   content,
   truncated,
   isLoading,
@@ -29,7 +32,13 @@ export const FileViewerModal: React.FC<FileViewerModalProps> = ({
   onClose,
 }) => {
   const displayPath = resolvedPath ?? filePath;
-  const editorHref = resolvedPath && isAbsolutePath(resolvedPath) ? toVsCodeUri(resolvedPath) : null;
+  const editorHref = buildEditorHref(editorPath ?? resolvedPath, selectedEditor, {
+    jetbrainsProduct,
+    jetbrainsProjectName,
+    projectPath,
+  });
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
+  const resetTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -39,8 +48,36 @@ export const FileViewerModal: React.FC<FileViewerModalProps> = ({
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      if (resetTimerRef.current !== null) {
+        window.clearTimeout(resetTimerRef.current);
+      }
+    };
   }, [onClose]);
+
+  const handleCopyPath = async () => {
+    if (!navigator.clipboard) {
+      setCopyState('error');
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(displayPath);
+      setCopyState('copied');
+    } catch {
+      setCopyState('error');
+    }
+
+    if (resetTimerRef.current !== null) {
+      window.clearTimeout(resetTimerRef.current);
+    }
+
+    resetTimerRef.current = window.setTimeout(() => {
+      setCopyState('idle');
+      resetTimerRef.current = null;
+    }, 1600);
+  };
 
   return (
     <div className="confirm-modal-overlay" onClick={onClose}>
@@ -61,18 +98,27 @@ export const FileViewerModal: React.FC<FileViewerModalProps> = ({
               <a
                 className="confirm-modal-button file-viewer-open-link"
                 href={editorHref}
-                title={`Open ${displayPath} in VS Code`}
+                title={`Open ${displayPath} in your configured editor`}
               >
                 Open in IDE
               </a>
             ) : null}
             <button
               type="button"
-              className="confirm-modal-button"
-              onClick={() => navigator.clipboard?.writeText(displayPath)}
-              title="Copy file path"
+              className={`confirm-modal-button file-viewer-copy-button ${
+                copyState !== 'idle' ? `is-${copyState}` : ''
+              }`}
+              onClick={() => void handleCopyPath()}
+              aria-label={copyState === 'copied' ? 'File path copied' : 'Copy file path'}
+              title={
+                copyState === 'copied'
+                  ? 'Copied'
+                  : copyState === 'error'
+                    ? 'Copy failed'
+                    : 'Copy file path'
+              }
             >
-              Copy Path
+              {copyState === 'copied' ? 'Copied' : copyState === 'error' ? 'Retry' : 'Copy Path'}
             </button>
             <button type="button" className="confirm-modal-button" onClick={onClose}>
               Close

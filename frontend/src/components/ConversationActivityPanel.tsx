@@ -2,17 +2,22 @@ import React from 'react';
 import type { ActivityToolCall } from '../types';
 import { CodeBlock } from './CodeBlock';
 import { DiffPreview } from './DiffPreview';
+import { toDisplayFilePath } from './displayFilePath';
 
 interface ConversationActivityPanelProps {
   commands: string[];
   filesTouched: string[];
   toolCalls: ActivityToolCall[];
+  projectPath?: string;
+  onOpenFile: (filePath: string) => void;
 }
 
 export const ConversationActivityPanel: React.FC<ConversationActivityPanelProps> = ({
   commands,
   filesTouched,
   toolCalls,
+  projectPath,
+  onOpenFile,
 }) => {
   return (
     <div className="prompt-activity-panel">
@@ -24,9 +29,15 @@ export const ConversationActivityPanel: React.FC<ConversationActivityPanelProps>
           <h4>Files Touched</h4>
           <div className="activity-chip-list">
             {filesTouched.map((filePath) => (
-              <span key={filePath} className="activity-chip">
-                {filePath}
-              </span>
+              <button
+                key={filePath}
+                type="button"
+                className="activity-chip activity-file-button"
+                onClick={() => onOpenFile(filePath)}
+                title={filePath}
+              >
+                {toDisplayFilePath(filePath, projectPath)}
+              </button>
             ))}
           </div>
         </div>
@@ -59,7 +70,16 @@ export const ConversationActivityPanel: React.FC<ConversationActivityPanelProps>
                     </span>
                   ) : null}
                 </div>
-                {toolCall.filePath ? <div className="tool-file-path">{toolCall.filePath}</div> : null}
+                {toolCall.filePath ? (
+                  <button
+                    type="button"
+                  className="tool-file-path tool-file-path-button"
+                  onClick={() => onOpenFile(toolCall.filePath!)}
+                  title={toolCall.filePath}
+                >
+                    {toDisplayFilePath(toolCall.filePath, projectPath)}
+                  </button>
+                ) : null}
                 {toolCall.command ? (
                   <CodeBlock language="bash" value={toolCall.command} />
                 ) : toolCall.summary ? (

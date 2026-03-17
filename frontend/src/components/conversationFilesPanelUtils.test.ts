@@ -74,4 +74,108 @@ describe('buildConversationFileGroups', () => {
       frequency: 1,
     });
   });
+
+  it('normalizes project-absolute paths to the same preview path used by message links', () => {
+    const groups = buildConversationFileGroups(
+      makeConversation({
+        messages: [
+          {
+            sender: 'user',
+            content: 'Inspect [app.ts](src/app.ts).',
+            timestamp: '2026-03-17T12:00:00.000Z',
+          },
+        ],
+        sessionActivity: {
+          commands: ['cat /tmp/viewer/src/app.ts'],
+          filesTouched: ['/tmp/viewer/src/app.ts'],
+          toolCalls: [
+            {
+              name: 'read_file',
+              kind: 'read',
+              timestamp: '2026-03-17T12:00:01.000Z',
+              filePath: '/tmp/viewer/src/app.ts',
+            },
+          ],
+        },
+      })
+    );
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.files[0]).toMatchObject({
+      filePath: '/tmp/viewer/src/app.ts',
+      displayPath: 'src/app.ts',
+      source: 'both',
+      frequency: 2,
+    });
+  });
+
+  it('prefers a working relative preview path when mixed with a mismatched absolute variant', () => {
+    const groups = buildConversationFileGroups(
+      makeConversation({
+        projectPath: '/tmp/viewer',
+        messages: [
+          {
+            sender: 'user',
+            content: 'Inspect [app.ts](src/app.ts).',
+            timestamp: '2026-03-17T12:00:00.000Z',
+          },
+        ],
+        sessionActivity: {
+          commands: ['cat /mnt/other-root/src/app.ts'],
+          filesTouched: ['/mnt/other-root/src/app.ts'],
+          toolCalls: [
+            {
+              name: 'read_file',
+              kind: 'read',
+              timestamp: '2026-03-17T12:00:01.000Z',
+              filePath: '/mnt/other-root/src/app.ts',
+            },
+          ],
+        },
+      })
+    );
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.files[0]).toMatchObject({
+      filePath: '/mnt/other-root/src/app.ts',
+      displayPath: 'src/app.ts',
+      source: 'both',
+      frequency: 3,
+    });
+  });
+
+  it('keeps an absolute open path when a matching relative activity path is also present', () => {
+    const groups = buildConversationFileGroups(
+      makeConversation({
+        projectPath: '/tmp/viewer/frontend',
+        messages: [
+          {
+            sender: 'user',
+            content: 'Inspect /tmp/viewer/frontend/src/components/conversationFilesPanelUtils.ts.',
+            timestamp: '2026-03-17T12:00:00.000Z',
+          },
+        ],
+        sessionActivity: {
+          commands: ['cat src/components/conversationFilesPanelUtils.ts'],
+          filesTouched: ['src/components/conversationFilesPanelUtils.ts'],
+          toolCalls: [
+            {
+              name: 'read_file',
+              kind: 'read',
+              timestamp: '2026-03-17T12:00:01.000Z',
+              filePath: 'src/components/conversationFilesPanelUtils.ts',
+            },
+          ],
+        },
+      })
+    );
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.files[0]).toMatchObject({
+      filePath: '/tmp/viewer/frontend/src/components/conversationFilesPanelUtils.ts',
+      displayPath: 'src/components/conversationFilesPanelUtils.ts',
+      source: 'both',
+      frequency: 2,
+    });
+  });
 });

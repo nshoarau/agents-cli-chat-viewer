@@ -26,8 +26,19 @@ const EXTENSIONLESS_FILE_NAMES = new Set([
 
 export const conversationRouter = Router();
 
-const normalizePathCandidate = (value: string): string => value.trim().replace(/[),.:;!?]+$/, '');
+const stripPathSuffixes = (value: string): string => value.split(/[?#]/, 1)[0] ?? value;
+const normalizePathCandidate = (value: string): string =>
+  stripPathSuffixes(value.trim().replace(/[),.:;!?]+$/, ''));
 const WSL_DISTRIBUTION_NAME = process.env.WSL_DISTRO_NAME;
+const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
+
+type PreviewStatus = 'ready' | 'binary' | 'too_large' | 'encoding_error';
+
+const isMissingFileError = (error: unknown): boolean =>
+  typeof error === 'object' &&
+  error !== null &&
+  'code' in error &&
+  error.code === 'ENOENT';
 
 const isDomainLike = (value: string): boolean =>
   /^(?:\d{1,3}\.){1,3}\d{1,3}(?::\d+)?$/.test(value) ||
@@ -48,18 +59,20 @@ const hasFileLikeBaseName = (value: string): boolean => {
 };
 
 const isPreviewablePathReference = (value: string): boolean => {
+  const normalizedValue = normalizePathCandidate(value);
+
   if (
-    !value ||
-    value.startsWith('http://') ||
-    value.startsWith('https://') ||
-    value.startsWith('mailto:') ||
-    value.startsWith('#') ||
-    isDomainLike(value)
+    !normalizedValue ||
+    normalizedValue.startsWith('http://') ||
+    normalizedValue.startsWith('https://') ||
+    normalizedValue.startsWith('mailto:') ||
+    normalizedValue.startsWith('#') ||
+    isDomainLike(normalizedValue)
   ) {
     return false;
   }
 
-  return hasFileLikeBaseName(value);
+  return hasFileLikeBaseName(normalizedValue);
 };
 
 const extractMessageFileReferences = (content: string): string[] => {
@@ -92,30 +105,31 @@ const resolvePreviewCandidates = (
   }
 ): string[] => {
   const candidates = new Set<string>();
+  const normalizedFilePath = normalizePathCandidate(filePath);
   const { projectPath, conversationFilePath } = options ?? {};
 
-  if (path.isAbsolute(filePath)) {
-    candidates.add(path.resolve(filePath));
+  if (path.isAbsolute(normalizedFilePath)) {
+    candidates.add(path.resolve(normalizedFilePath));
   }
 
   if (projectPath) {
-    candidates.add(path.resolve(projectPath, filePath));
-    if (filePath.startsWith(path.sep)) {
-      candidates.add(path.resolve(projectPath, `.${filePath}`));
+    candidates.add(path.resolve(projectPath, normalizedFilePath));
+    if (normalizedFilePath.startsWith(path.sep)) {
+      candidates.add(path.resolve(projectPath, `.${normalizedFilePath}`));
     }
   }
 
   if (conversationFilePath) {
     const conversationDir = path.dirname(conversationFilePath);
-    candidates.add(path.resolve(conversationDir, filePath));
-    if (filePath.startsWith(path.sep)) {
-      candidates.add(path.resolve(conversationDir, `.${filePath}`));
+    candidates.add(path.resolve(conversationDir, normalizedFilePath));
+    if (normalizedFilePath.startsWith(path.sep)) {
+      candidates.add(path.resolve(conversationDir, `.${normalizedFilePath}`));
     }
   }
 
-  candidates.add(path.resolve(process.cwd(), filePath));
-  if (filePath.startsWith(path.sep)) {
-    candidates.add(path.resolve(process.cwd(), `.${filePath}`));
+  candidates.add(path.resolve(process.cwd(), normalizedFilePath));
+  if (normalizedFilePath.startsWith(path.sep)) {
+    candidates.add(path.resolve(process.cwd(), `.${normalizedFilePath}`));
   }
 
   return [...candidates];
@@ -128,6 +142,142 @@ const toEditorPath = (resolvedPath: string): string => {
 
   const normalizedPath = resolvedPath.replace(/\//g, '\\');
   return `\\\\wsl.localhost\\${WSL_DISTRIBUTION_NAME}${normalizedPath}`;
+};
+
+const getPreviewMimeType = (filePath: string): string => {
+  const extension = path.extname(filePath).toLocaleLowerCase();
+
+  switch (extension) {
+    case '.ts':
+    case '.tsx':
+      return 'text/typescript';
+    case '.js':
+    case '.jsx':
+    case '.mjs':
+    case '.cjs':
+      return 'text/javascript';
+    case '.json':
+      return 'application/json';
+    case '.md':
+      return 'text/markdown';
+    case '.css':
+      return 'text/css';
+    case '.html':
+      return 'text/html';
+    case '.txt':
+    case '.log':
+    case '.yml':
+    case '.yaml':
+    case '.env':
+      return 'text/plain';
+    case '.png':
+      return 'image/png';
+    case '.jpg':
+    case '.jpeg':
+      return 'image/jpeg';
+    case '.gif':
+      return 'image/gif';
+    case '.svg':
+      return 'image/svg+xml';
+    case '.pdf':
+      return 'application/pdf';
+    default:
+      return 'application/octet-stream';
+  }
+};
+
+const isWithinRoot = (candidate: string, root?: string): boolean => {
+  if (!root) {
+    return false;
+  }
+
+  const normalizedRoot = path.resolve(root);
+  const relativePath = path.relative(normalizedRoot, candidate);
+  return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
+};
+
+const collectAllowedPreviewPaths = (conversation: {
+  filePath: string;
+  projectPath?: string;
+  sessionActivity?: {
+    filesTouched?: string[];
+    toolCalls?: Array<{ filePath?: string }>;
+  };
+  messages?: Array<{ content?: string }>;
+}): Set<string> =>
+  new Set<string>(
+    [
+      ...(conversation.sessionActivity?.filesTouched ?? []),
+      ...(conversation.sessionActivity?.toolCalls
+        ?.map((toolCall) => toolCall.filePath)
+        .filter((filePath): filePath is string => Boolean(filePath)) ?? []),
+      ...(conversation.messages ?? []).flatMap((message) =>
+        extractMessageFileReferences(message.content ?? '')
+      ),
+    ].flatMap((filePath) =>
+      resolvePreviewCandidates(filePath, {
+        projectPath: conversation.projectPath,
+        conversationFilePath: conversation.filePath,
+      })
+    )
+  );
+
+const resolveAuthorizedPreviewPath = (
+  requestedPath: string,
+  conversation: {
+    filePath: string;
+    projectPath?: string;
+    sessionActivity?: {
+      filesTouched?: string[];
+      toolCalls?: Array<{ filePath?: string }>;
+    };
+    messages?: Array<{ content?: string }>;
+  }
+):
+  | {
+      ok: true;
+      matchedPath: string;
+    }
+  | {
+      ok: false;
+      statusCode: number;
+      error: string;
+    } => {
+  const allowedPaths = collectAllowedPreviewPaths(conversation);
+  const requestedCandidates = resolvePreviewCandidates(requestedPath, {
+    projectPath: conversation.projectPath,
+    conversationFilePath: conversation.filePath,
+  });
+  const matchedPath = requestedCandidates.find((candidate) => allowedPaths.has(candidate));
+
+  if (matchedPath) {
+    return { ok: true, matchedPath };
+  }
+
+  const conversationDir = path.dirname(conversation.filePath);
+  const looksInternal = requestedCandidates.some(
+    (candidate) => isWithinRoot(candidate, conversation.projectPath) || isWithinRoot(candidate, conversationDir)
+  );
+
+  return {
+    ok: false,
+    statusCode: 403,
+    error: looksInternal
+      ? 'File is not referenced in this conversation.'
+      : 'File is outside the allowed preview paths for this conversation.',
+  };
+};
+
+const isLikelyBinaryBuffer = (buffer: Buffer): boolean => {
+  const sampleLength = Math.min(buffer.length, 4096);
+
+  for (let index = 0; index < sampleLength; index += 1) {
+    if (buffer[index] === 0) {
+      return true;
+    }
+  }
+
+  return false;
 };
 
 const getLogsDir = () => process.env.LOGS_DIR || path.join(__dirname, '../../logs');
@@ -183,34 +333,22 @@ conversationRouter.get('/:id/files/content', async (req, res) => {
       return res.status(404).json({ error: 'Conversation not found' });
     }
 
-    const allowedPaths = new Set<string>(
-      [
-        ...(conversation.sessionActivity?.filesTouched ?? []),
-        ...(conversation.sessionActivity?.toolCalls
-          .map((toolCall) => toolCall.filePath)
-          .filter((filePath): filePath is string => Boolean(filePath)) ?? []),
-        ...(conversation.messages ?? []).flatMap((message) =>
-          extractMessageFileReferences(message.content ?? '')
-        ),
-      ].flatMap((filePath) =>
-        resolvePreviewCandidates(filePath, {
-          projectPath: conversation.projectPath,
-          conversationFilePath: conversation.filePath,
-        })
-      )
-    );
-
-    const requestedCandidates = resolvePreviewCandidates(requestedPath, {
-      projectPath: conversation.projectPath,
-      conversationFilePath: conversation.filePath,
-    });
-    const matchedPath = requestedCandidates.find((candidate) => allowedPaths.has(candidate));
-
-    if (!matchedPath) {
-      return res.status(403).json({ error: 'File is not available for this conversation preview.' });
+    const authorizedPath = resolveAuthorizedPreviewPath(requestedPath, conversation);
+    if (!authorizedPath.ok) {
+      return res.status(authorizedPath.statusCode).json({ error: authorizedPath.error });
     }
 
-    const stats = await fs.stat(matchedPath);
+    const matchedPath = authorizedPath.matchedPath;
+    let stats;
+    try {
+      stats = await fs.stat(matchedPath);
+    } catch (error) {
+      if (isMissingFileError(error)) {
+        return res.status(404).json({ error: 'Referenced file no longer exists.' });
+      }
+
+      throw error;
+    }
     if (!stats.isFile()) {
       return res.status(400).json({ error: 'Only regular files can be previewed.' });
     }
@@ -221,15 +359,105 @@ conversationRouter.get('/:id/files/content', async (req, res) => {
     await fileHandle.read(buffer, 0, bytesToRead, 0);
     await fileHandle.close();
 
+    const rawUrl = `/api/conversations/${id}/files/raw?path=${encodeURIComponent(requestedPath)}`;
+
+    if (stats.size > MAX_FILE_PREVIEW_BYTES) {
+      return res.json({
+        filePath: matchedPath,
+        editorPath: toEditorPath(matchedPath),
+        content: '',
+        truncated: false,
+        previewStatus: 'too_large' satisfies PreviewStatus,
+        previewMessage: 'File is too large to preview inline. Open the raw file instead.',
+        rawUrl,
+        mimeType: getPreviewMimeType(matchedPath),
+      });
+    }
+
+    if (isLikelyBinaryBuffer(buffer)) {
+      return res.json({
+        filePath: matchedPath,
+        editorPath: toEditorPath(matchedPath),
+        content: '',
+        truncated: false,
+        previewStatus: 'binary' satisfies PreviewStatus,
+        previewMessage: 'Binary files cannot be previewed as text. Open the raw file instead.',
+        rawUrl,
+        mimeType: getPreviewMimeType(matchedPath),
+      });
+    }
+
+    let decodedContent: string;
+    try {
+      decodedContent = utf8Decoder.decode(buffer);
+    } catch {
+      return res.json({
+        filePath: matchedPath,
+        editorPath: toEditorPath(matchedPath),
+        content: '',
+        truncated: false,
+        previewStatus: 'encoding_error' satisfies PreviewStatus,
+        previewMessage: 'This file could not be decoded as UTF-8 text. Open the raw file instead.',
+        rawUrl,
+        mimeType: getPreviewMimeType(matchedPath),
+      });
+    }
+
     return res.json({
       filePath: matchedPath,
       editorPath: toEditorPath(matchedPath),
-      content: buffer.toString('utf-8'),
-      truncated: stats.size > MAX_FILE_PREVIEW_BYTES,
+      content: decodedContent,
+      truncated: false,
+      previewStatus: 'ready' satisfies PreviewStatus,
+      rawUrl,
+      mimeType: getPreviewMimeType(matchedPath),
     });
   } catch (error) {
     console.error('File preview failed:', error);
     return res.status(500).json({ error: 'Failed to load file preview.' });
+  }
+});
+
+conversationRouter.get('/:id/files/raw', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const requestedPath = String(req.query.path || '');
+
+    if (!requestedPath) {
+      return res.status(400).json({ error: 'A file path is required.' });
+    }
+
+    const conversation = await getConversationIndex().getConversation(id, false);
+    if (!conversation) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+
+    const authorizedPath = resolveAuthorizedPreviewPath(requestedPath, conversation);
+    if (!authorizedPath.ok) {
+      return res.status(authorizedPath.statusCode).json({ error: authorizedPath.error });
+    }
+
+    const matchedPath = authorizedPath.matchedPath;
+    let stats;
+    try {
+      stats = await fs.stat(matchedPath);
+    } catch (error) {
+      if (isMissingFileError(error)) {
+        return res.status(404).json({ error: 'Referenced file no longer exists.' });
+      }
+
+      throw error;
+    }
+    if (!stats.isFile()) {
+      return res.status(400).json({ error: 'Only regular files can be previewed.' });
+    }
+
+    res.setHeader('Content-Type', getPreviewMimeType(matchedPath));
+    res.setHeader('Content-Disposition', `inline; filename="${path.basename(matchedPath)}"`);
+    return res.sendFile(path.resolve(matchedPath));
+  } catch (error) {
+    console.error('Raw file load failed:', error);
+    return res.status(500).json({ error: 'Failed to load raw file.' });
   }
 });
 

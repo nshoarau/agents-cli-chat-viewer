@@ -707,6 +707,9 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
           projectPath={conversation.projectPath}
           content={filePreview?.content ?? ''}
           truncated={Boolean(filePreview?.truncated)}
+          previewStatus={filePreview?.previewStatus}
+          previewMessage={filePreview?.previewMessage}
+          rawUrl={filePreview?.rawUrl}
           isLoading={isFilePreviewLoading}
           error={filePreviewError ?? undefined}
           onClose={() => {

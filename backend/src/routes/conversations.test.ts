@@ -94,6 +94,9 @@ describe('conversationRouter file preview route', () => {
         editorPath: expectedEditorPath(filePath),
         content: 'export const answer = 42;\n',
         truncated: false,
+        previewStatus: 'ready',
+        rawUrl: `/api/conversations/conv-1/files/raw?path=${encodeURIComponent('src/app.ts')}`,
+        mimeType: 'text/typescript',
       });
     });
   });
@@ -123,7 +126,7 @@ describe('conversationRouter file preview route', () => {
 
       expect(response.status).toBe(403);
       await expect(response.json()).resolves.toEqual({
-        error: 'File is not available for this conversation preview.',
+        error: 'File is not referenced in this conversation.',
       });
     });
   });
@@ -161,6 +164,49 @@ describe('conversationRouter file preview route', () => {
         editorPath: expectedEditorPath(filePath),
         content: 'export const promptLinked = true;\n',
         truncated: false,
+        previewStatus: 'ready',
+        rawUrl: `/api/conversations/conv-1/files/raw?path=${encodeURIComponent('src/prompt.ts')}`,
+        mimeType: 'text/typescript',
+      });
+    });
+  });
+
+  it('allows prompt file references that include line anchors', async () => {
+    const projectDir = path.join(tempDir, 'project');
+    const conversationLog = path.join(tempDir, 'logs', 'session.jsonl');
+    const filePath = path.join(projectDir, 'src', 'prompt.ts');
+
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.mkdir(path.dirname(conversationLog), { recursive: true });
+    await fs.writeFile(filePath, 'export const anchored = true;\n');
+    await fs.writeFile(conversationLog, '{}\n');
+
+    getConversationMock.mockResolvedValue({
+      id: 'conv-1',
+      filePath: conversationLog,
+      projectPath: projectDir,
+      messages: [
+        {
+          sender: 'user',
+          content: 'Please inspect [prompt.ts](src/prompt.ts#L12) before you continue.',
+        },
+      ],
+    });
+
+    await withServer(async (baseUrl) => {
+      const response = await fetch(
+        `${baseUrl}/api/conversations/conv-1/files/content?path=${encodeURIComponent('src/prompt.ts#L12')}`
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({
+        filePath,
+        editorPath: expectedEditorPath(filePath),
+        content: 'export const anchored = true;\n',
+        truncated: false,
+        previewStatus: 'ready',
+        rawUrl: `/api/conversations/conv-1/files/raw?path=${encodeURIComponent('src/prompt.ts#L12')}`,
+        mimeType: 'text/typescript',
       });
     });
   });
@@ -192,12 +238,12 @@ describe('conversationRouter file preview route', () => {
 
       expect(response.status).toBe(403);
       await expect(response.json()).resolves.toEqual({
-        error: 'File is not available for this conversation preview.',
+        error: 'File is not referenced in this conversation.',
       });
     });
   });
 
-  it('truncates oversized file previews', async () => {
+  it('reports oversized file previews with a raw fallback', async () => {
     const projectDir = path.join(tempDir, 'project');
     const conversationLog = path.join(tempDir, 'logs', 'session.jsonl');
     const filePath = path.join(projectDir, 'large.txt');
@@ -228,9 +274,173 @@ describe('conversationRouter file preview route', () => {
       const body = await response.json();
       expect(body.filePath).toBe(filePath);
       expect(body.editorPath).toBe(expectedEditorPath(filePath));
-      expect(body.truncated).toBe(true);
-      expect(body.content).toHaveLength(200_000);
-      expect(body.content).toBe(largeContent.slice(0, 200_000));
+      expect(body.truncated).toBe(false);
+      expect(body.previewStatus).toBe('too_large');
+      expect(body.previewMessage).toBe('File is too large to preview inline. Open the raw file instead.');
+      expect(body.rawUrl).toBe(`/api/conversations/conv-1/files/raw?path=${encodeURIComponent(filePath)}`);
+      expect(body.content).toBe('');
+    });
+  });
+
+  it('reports binary file previews with a raw fallback', async () => {
+    const projectDir = path.join(tempDir, 'project');
+    const conversationLog = path.join(tempDir, 'logs', 'session.jsonl');
+    const filePath = path.join(projectDir, 'image.bin');
+
+    await fs.mkdir(projectDir, { recursive: true });
+    await fs.mkdir(path.dirname(conversationLog), { recursive: true });
+    await fs.writeFile(filePath, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0x01]));
+    await fs.writeFile(conversationLog, '{}\n');
+
+    getConversationMock.mockResolvedValue({
+      id: 'conv-1',
+      filePath: conversationLog,
+      projectPath: projectDir,
+      sessionActivity: {
+        filesTouched: ['image.bin'],
+        toolCalls: [],
+      },
+    });
+
+    await withServer(async (baseUrl) => {
+      const response = await fetch(
+        `${baseUrl}/api/conversations/conv-1/files/content?path=${encodeURIComponent('image.bin')}`
+      );
+
+      expect(response.status).toBe(200);
+
+      const body = await response.json();
+      expect(body.previewStatus).toBe('binary');
+      expect(body.previewMessage).toBe('Binary files cannot be previewed as text. Open the raw file instead.');
+      expect(body.rawUrl).toBe(`/api/conversations/conv-1/files/raw?path=${encodeURIComponent('image.bin')}`);
+    });
+  });
+
+  it('reports encoding errors with a raw fallback', async () => {
+    const projectDir = path.join(tempDir, 'project');
+    const conversationLog = path.join(tempDir, 'logs', 'session.jsonl');
+    const filePath = path.join(projectDir, 'latin1.txt');
+
+    await fs.mkdir(projectDir, { recursive: true });
+    await fs.mkdir(path.dirname(conversationLog), { recursive: true });
+    await fs.writeFile(filePath, Buffer.from([0x63, 0x61, 0x66, 0xe9]));
+    await fs.writeFile(conversationLog, '{}\n');
+
+    getConversationMock.mockResolvedValue({
+      id: 'conv-1',
+      filePath: conversationLog,
+      projectPath: projectDir,
+      sessionActivity: {
+        filesTouched: ['latin1.txt'],
+        toolCalls: [],
+      },
+    });
+
+    await withServer(async (baseUrl) => {
+      const response = await fetch(
+        `${baseUrl}/api/conversations/conv-1/files/content?path=${encodeURIComponent('latin1.txt')}`
+      );
+
+      expect(response.status).toBe(200);
+
+      const body = await response.json();
+      expect(body.previewStatus).toBe('encoding_error');
+      expect(body.previewMessage).toBe('This file could not be decoded as UTF-8 text. Open the raw file instead.');
+      expect(body.rawUrl).toBe(`/api/conversations/conv-1/files/raw?path=${encodeURIComponent('latin1.txt')}`);
+    });
+  });
+
+  it('returns 404 when an authorized preview target no longer exists', async () => {
+    const projectDir = path.join(tempDir, 'project');
+    const conversationLog = path.join(tempDir, 'logs', 'session.jsonl');
+
+    await fs.mkdir(projectDir, { recursive: true });
+    await fs.mkdir(path.dirname(conversationLog), { recursive: true });
+    await fs.writeFile(conversationLog, '{}\n');
+
+    getConversationMock.mockResolvedValue({
+      id: 'conv-1',
+      filePath: conversationLog,
+      projectPath: projectDir,
+      messages: [
+        {
+          sender: 'user',
+          content: 'Please inspect [missing.ts](src/missing.ts).',
+        },
+      ],
+    });
+
+    await withServer(async (baseUrl) => {
+      const response = await fetch(
+        `${baseUrl}/api/conversations/conv-1/files/content?path=${encodeURIComponent('src/missing.ts')}`
+      );
+
+      expect(response.status).toBe(404);
+      await expect(response.json()).resolves.toEqual({
+        error: 'Referenced file no longer exists.',
+      });
+    });
+  });
+
+  it('serves the raw file for authorized requests', async () => {
+    const projectDir = path.join(tempDir, 'project');
+    const conversationLog = path.join(tempDir, 'logs', 'session.jsonl');
+    const filePath = path.join(projectDir, 'src', 'app.ts');
+
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.mkdir(path.dirname(conversationLog), { recursive: true });
+    await fs.writeFile(filePath, 'export const answer = 42;\n');
+    await fs.writeFile(conversationLog, '{}\n');
+
+    getConversationMock.mockResolvedValue({
+      id: 'conv-1',
+      filePath: conversationLog,
+      projectPath: projectDir,
+      sessionActivity: {
+        filesTouched: ['src/app.ts'],
+        toolCalls: [],
+      },
+    });
+
+    await withServer(async (baseUrl) => {
+      const response = await fetch(
+        `${baseUrl}/api/conversations/conv-1/files/raw?path=${encodeURIComponent('src/app.ts')}`
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.text()).resolves.toBe('export const answer = 42;\n');
+    });
+  });
+
+  it('returns 404 for missing raw files that were referenced by the conversation', async () => {
+    const projectDir = path.join(tempDir, 'project');
+    const conversationLog = path.join(tempDir, 'logs', 'session.jsonl');
+
+    await fs.mkdir(projectDir, { recursive: true });
+    await fs.mkdir(path.dirname(conversationLog), { recursive: true });
+    await fs.writeFile(conversationLog, '{}\n');
+
+    getConversationMock.mockResolvedValue({
+      id: 'conv-1',
+      filePath: conversationLog,
+      projectPath: projectDir,
+      messages: [
+        {
+          sender: 'user',
+          content: 'Please inspect [missing.ts](src/missing.ts).',
+        },
+      ],
+    });
+
+    await withServer(async (baseUrl) => {
+      const response = await fetch(
+        `${baseUrl}/api/conversations/conv-1/files/raw?path=${encodeURIComponent('src/missing.ts')}`
+      );
+
+      expect(response.status).toBe(404);
+      await expect(response.json()).resolves.toEqual({
+        error: 'Referenced file no longer exists.',
+      });
     });
   });
 

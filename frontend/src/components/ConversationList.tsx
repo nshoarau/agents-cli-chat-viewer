@@ -8,6 +8,7 @@ interface ConversationListProps {
   conversations: ConversationSummary[];
   onSelect: (id: string) => void;
   selectedId?: string;
+  selectedAgentMode: 'none' | 'all' | ConversationSummary['agentType'];
 }
 
 type HeaderItem =
@@ -23,10 +24,17 @@ export const ConversationList: React.FC<ConversationListProps> = ({
   conversations,
   onSelect,
   selectedId,
+  selectedAgentMode,
 }) => {
   const [collapsedProjects, setCollapsedProjects] = useState<Record<string, boolean>>({});
 
   const listItems = useMemo(() => {
+    if (selectedAgentMode === 'all') {
+      return [...conversations].sort(
+        (left, right) => new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime()
+      );
+    }
+
     const agentGroups = new Map<string, ConversationSummary[]>();
     conversations.forEach((conversation) => {
       const existing = agentGroups.get(conversation.agentType) ?? [];
@@ -81,9 +89,8 @@ export const ConversationList: React.FC<ConversationListProps> = ({
             items.push(...sortedConversations);
           });
       });
-
     return items;
-  }, [collapsedProjects, conversations]);
+  }, [collapsedProjects, conversations, selectedAgentMode]);
 
   const toggleProject = (key: string) => {
     setCollapsedProjects((current) => ({
@@ -121,6 +128,12 @@ export const ConversationList: React.FC<ConversationListProps> = ({
       );
     }
 
+    const folderLabel = item.relativePath.includes('/')
+      ? item.relativePath.slice(0, item.relativePath.lastIndexOf('/'))
+      : item.relativePath;
+    const contextLabel =
+      selectedAgentMode === 'all' ? [item.project, folderLabel].filter(Boolean).join(' · ') : '';
+
     return (
       <div
         style={style}
@@ -133,6 +146,7 @@ export const ConversationList: React.FC<ConversationListProps> = ({
           </span>
           <span className="conv-date">{new Date(item.timestamp).toLocaleDateString()}</span>
         </div>
+        {contextLabel ? <div className="conv-project">{contextLabel}</div> : null}
         <div className="conv-title">{item.title}</div>
       </div>
     );
@@ -151,7 +165,7 @@ export const ConversationList: React.FC<ConversationListProps> = ({
           return item.kind === 'agent' ? 32 : 36;
         }
 
-        return 68;
+        return selectedAgentMode === 'all' ? 82 : 76;
       }}
       rowComponent={Row}
       rowProps={{}}

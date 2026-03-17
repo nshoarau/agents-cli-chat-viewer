@@ -7,11 +7,14 @@ interface FileViewerModalProps {
   resolvedPath?: string;
   editorPath?: string;
   selectedEditor: EditorOptionId;
-  jetbrainsProduct: JetBrainsProductId;
+  jetbrainsProduct?: JetBrainsProductId;
   jetbrainsProjectName?: string;
   projectPath?: string;
   content: string;
   truncated: boolean;
+  previewStatus?: 'ready' | 'binary' | 'too_large' | 'encoding_error';
+  previewMessage?: string;
+  rawUrl?: string;
   isLoading: boolean;
   error?: string;
   onClose: () => void;
@@ -27,6 +30,9 @@ export const FileViewerModal: React.FC<FileViewerModalProps> = ({
   projectPath,
   content,
   truncated,
+  previewStatus = 'ready',
+  previewMessage,
+  rawUrl,
   isLoading,
   error,
   onClose,
@@ -39,6 +45,14 @@ export const FileViewerModal: React.FC<FileViewerModalProps> = ({
   });
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
   const resetTimerRef = useRef<number | null>(null);
+  const statusTone =
+    previewStatus === 'binary'
+      ? 'info'
+      : previewStatus === 'too_large'
+        ? 'warning'
+        : previewStatus === 'encoding_error'
+          ? 'error'
+          : null;
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -94,6 +108,17 @@ export const FileViewerModal: React.FC<FileViewerModalProps> = ({
             <div className="file-viewer-path">{displayPath}</div>
           </div>
           <div className="file-viewer-actions">
+            {rawUrl ? (
+              <a
+                className="confirm-modal-button file-viewer-open-link"
+                href={rawUrl}
+                target="_blank"
+                rel="noreferrer"
+                title={`Open raw file for ${displayPath}`}
+              >
+                Open Raw
+              </a>
+            ) : null}
             {editorHref ? (
               <a
                 className="confirm-modal-button file-viewer-open-link"
@@ -127,12 +152,17 @@ export const FileViewerModal: React.FC<FileViewerModalProps> = ({
         </div>
         {isLoading ? <div className="file-viewer-state">Loading file preview...</div> : null}
         {!isLoading && error ? <div className="file-viewer-state file-viewer-error">{error}</div> : null}
+        {!isLoading && !error && previewStatus !== 'ready' ? (
+          <div className={`file-viewer-state file-viewer-status is-${statusTone ?? 'info'}`}>
+            {previewMessage}
+          </div>
+        ) : null}
         {!isLoading && !error ? (
           <div className="file-viewer-content">
             {truncated ? (
               <div className="file-viewer-state">Preview truncated to keep the viewer responsive.</div>
             ) : null}
-            <CodeBlock language="text" value={content} />
+            {previewStatus === 'ready' ? <CodeBlock language="text" value={content} /> : null}
           </div>
         ) : null}
       </div>

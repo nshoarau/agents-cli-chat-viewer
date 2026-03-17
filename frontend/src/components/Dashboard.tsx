@@ -12,6 +12,10 @@ import { ToastNotification } from './ToastNotification';
 import { useConversationStore } from '../store/useConversationStore';
 import { WatchFoldersPanel } from './WatchFoldersPanel';
 import { getNextConversationIdAfterDelete } from './dashboardUtils';
+import {
+  loadConversationDetailPreferences,
+  persistConversationDetailPreferences,
+} from './conversationDetailUtils';
 
 const CONVERSATIONS_PAGE_SIZE = 200;
 const TOAST_DURATION_MS = 2600;
@@ -35,9 +39,11 @@ const getErrorMessage = (error: unknown): string => {
 };
 
 export const Dashboard: React.FC = () => {
+  const initialPreferences = useMemo(() => loadConversationDetailPreferences(), []);
   const [selectedId, setSelectedId] = useState<string | undefined>();
   const [isWatchFoldersOpen, setIsWatchFoldersOpen] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(initialPreferences.sidebarCollapsed);
   const { showArchived, searchQuery, selectedAgent } = useConversationStore();
 
   useLogUpdates();
@@ -93,6 +99,14 @@ export const Dashboard: React.FC = () => {
     return () => window.clearTimeout(timeoutId);
   }, [toast]);
 
+  useEffect(() => {
+    const preferences = loadConversationDetailPreferences();
+    persistConversationDetailPreferences({
+      ...preferences,
+      sidebarCollapsed: isSidebarCollapsed,
+    });
+  }, [isSidebarCollapsed]);
+
   // Filter list based on store and search query
   const filteredConversations = useMemo(() => {
     return conversations.filter((c) => {
@@ -115,6 +129,22 @@ export const Dashboard: React.FC = () => {
       return true;
     });
   }, [conversations, showArchived, searchQuery, selectedAgent]);
+
+  const searchSuggestions = useMemo(() => {
+    const visibleConversations = conversations.filter((conversation) => {
+      if (selectedAgent !== 'all' && selectedAgent !== 'none' && conversation.agentType !== selectedAgent) {
+        return false;
+      }
+
+      if (!showArchived && conversation.status === 'archived') {
+        return false;
+      }
+
+      return Boolean(conversation.title?.trim());
+    });
+
+    return [...new Set(visibleConversations.map((conversation) => conversation.title.trim()))];
+  }, [conversations, selectedAgent, showArchived]);
 
   const selectedConversation = conversations.find((item) => item.id === selectedId);
 
@@ -148,11 +178,22 @@ export const Dashboard: React.FC = () => {
   return (
     <div className="dashboard-container">
       <main className="dashboard-content">
-        <aside className="sidebar">
+        <aside className={`sidebar ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+          <button
+            type="button"
+            className="sidebar-collapse-button"
+            onClick={() => setIsSidebarCollapsed((current) => !current)}
+            aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {isSidebarCollapsed ? '»' : '«'}
+          </button>
+          {!isSidebarCollapsed ? (
+            <>
           <div className="sidebar-utilities">
             <div className="sidebar-filter-card sidebar-utility-card">
               <div className="sidebar-filter-title">Search Conversations</div>
-              <SearchBar />
+              <SearchBar suggestions={searchSuggestions} />
             </div>
             <div className="sidebar-filter-card sidebar-utility-card">
               <div className="sidebar-filter-title">Workspace</div>
@@ -173,6 +214,7 @@ export const Dashboard: React.FC = () => {
               conversations={filteredConversations}
               onSelect={setSelectedId}
               selectedId={selectedId}
+              selectedAgentMode={selectedAgent}
             />
           )}
           {selectedAgent !== 'none' && hasNextPage ? (
@@ -184,6 +226,10 @@ export const Dashboard: React.FC = () => {
               </button>
             </div>
           ) : null}
+            </>
+          ) : (
+            <div className="sidebar-collapsed-hint">Transcript mode</div>
+          )}
         </aside>
         <section className="detail-panel">
           {isDetailLoading ? (
@@ -196,6 +242,9 @@ export const Dashboard: React.FC = () => {
               isLoading={false}
               onShowToast={showToast}
               onConversationDeleted={handleConversationDeleted}
+              isSidebarCollapsed={isSidebarCollapsed}
+              onToggleSidebar={() => setIsSidebarCollapsed((current) => !current)}
+              onSetSidebarCollapsed={setIsSidebarCollapsed}
             />
           )}
         </section>

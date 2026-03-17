@@ -4,7 +4,12 @@ import type { Components } from 'react-markdown';
 import type { ActivityToolCall, Message } from '../types';
 import { CodeBlock } from './CodeBlock';
 import { ConversationActivityPanel } from './ConversationActivityPanel';
-import { extractMessageFileReferences, isPreviewablePathReference } from './fileReferenceUtils';
+import { toDisplayFilePath } from './displayFilePath';
+import {
+  extractMessageFileReferences,
+  isPreviewablePathReference,
+  toPreviewablePathReference,
+} from './fileReferenceUtils';
 
 interface ConversationMessageBubbleProps {
   message: Message;
@@ -21,6 +26,7 @@ interface ConversationMessageBubbleProps {
   };
   isActivityExpanded: boolean;
   onToggleActivity: () => void;
+  projectPath?: string;
   onOpenFile: (filePath: string) => void;
 }
 
@@ -87,12 +93,13 @@ const createMarkdownComponents = (
   },
   a({ children, href, ...props }) {
     if (href && isPreviewablePathReference(href)) {
+      const previewPath = toPreviewablePathReference(href);
       return (
         <button
           type="button"
           className="message-file-link"
-          onClick={() => onOpenFile(href)}
-          title={href}
+          onClick={() => onOpenFile(previewPath)}
+          title={previewPath}
         >
           {highlightTextChildren(children, searchHighlightQuery)}
         </button>
@@ -142,6 +149,7 @@ export const ConversationMessageBubble: React.FC<ConversationMessageBubbleProps>
   activity,
   isActivityExpanded,
   onToggleActivity,
+  projectPath,
   onOpenFile,
 }) => {
   const hasActivity = message.sender === 'agent' && activity && activity.toolCalls.length > 0;
@@ -226,7 +234,7 @@ export const ConversationMessageBubble: React.FC<ConversationMessageBubbleProps>
               onClick={() => onOpenFile(filePath)}
               title={filePath}
             >
-              {filePath}
+              {toDisplayFilePath(filePath, projectPath)}
             </button>
           ))}
         </div>
@@ -243,6 +251,7 @@ export const ConversationMessageBubble: React.FC<ConversationMessageBubbleProps>
           commands={activity.commands}
           filesTouched={activity.filesTouched}
           toolCalls={activity.toolCalls}
+          projectPath={projectPath}
           onOpenFile={onOpenFile}
         />
       ) : null}

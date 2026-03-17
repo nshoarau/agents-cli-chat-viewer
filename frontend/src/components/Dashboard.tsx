@@ -113,19 +113,20 @@ export const Dashboard: React.FC = () => {
 
   return (
     <div className="dashboard-container">
-      <header className="dashboard-header">
-        <div className="header-left">
-          <h1>Agents CLI Chat Viewer</h1>
-        </div>
-        <div className="header-right">
-          <button className="btn-add-folder" onClick={() => setIsWatchFoldersOpen(true)}>
-            Watched Folders
-          </button>
-          <SearchBar />
-        </div>
-      </header>
       <main className="dashboard-content">
         <aside className="sidebar">
+          <div className="sidebar-utilities">
+            <div className="sidebar-filter-card sidebar-utility-card">
+              <div className="sidebar-filter-title">Search Conversations</div>
+              <SearchBar />
+            </div>
+            <div className="sidebar-filter-card sidebar-utility-card">
+              <div className="sidebar-filter-title">Workspace</div>
+              <button className="btn-add-folder sidebar-action-button" onClick={() => setIsWatchFoldersOpen(true)}>
+                Watched Folders
+              </button>
+            </div>
+          </div>
           <FilterBar />
           {selectedAgent === 'none' ? (
             <div className="empty-list">Choose an agent filter to load conversations.</div>

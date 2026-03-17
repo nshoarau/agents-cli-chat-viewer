@@ -1,0 +1,63 @@
+import React from 'react';
+import type { CSSProperties } from 'react';
+import type { RowComponentProps } from 'react-window';
+import type { ActivityToolCall, Message } from '../types';
+import { ConversationMessageBubble } from './ConversationMessageBubble';
+
+export interface VirtualizedConversationRowData {
+  messages: Message[];
+  activePromptIndex?: number;
+  activeSearchTargetIndex?: number;
+  showSessionActivity: boolean;
+  agentActivities: Record<
+    number,
+    {
+      toolCalls: ActivityToolCall[];
+      commands: string[];
+      filesTouched: string[];
+    }
+  >;
+  agentActivityVisibility: Record<string, boolean>;
+  conversationId: string;
+  onToggleActivity: (index: number) => void;
+}
+
+type VirtualizedConversationRowProps = RowComponentProps<VirtualizedConversationRowData>;
+
+const rowStyle: CSSProperties = {
+  paddingBottom: '24px',
+};
+
+export const VirtualizedConversationRow: React.FC<VirtualizedConversationRowProps> = ({
+  ariaAttributes,
+  index,
+  style,
+  messages,
+  activePromptIndex,
+  activeSearchTargetIndex,
+  showSessionActivity,
+  agentActivities,
+  agentActivityVisibility,
+  conversationId,
+  onToggleActivity,
+}) => {
+  const message = messages[index];
+  if (!message) {
+    return null;
+  }
+
+  return (
+    <div aria-label={ariaAttributes['aria-posinset']?.toString()} role={ariaAttributes.role} style={{ ...style, ...rowStyle }}>
+      <ConversationMessageBubble
+        message={message}
+        messageIndex={index}
+        isPromptTarget={message.sender === 'user' && index === activePromptIndex}
+        isActiveSearchTarget={index === activeSearchTargetIndex}
+        showSessionActivity={showSessionActivity}
+        activity={agentActivities[index]}
+        isActivityExpanded={Boolean(agentActivityVisibility[`${conversationId}:${index}`])}
+        onToggleActivity={() => onToggleActivity(index)}
+      />
+    </div>
+  );
+};

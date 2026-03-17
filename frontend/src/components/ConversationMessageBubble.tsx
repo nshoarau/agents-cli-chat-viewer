@@ -7,6 +7,7 @@ import { ConversationActivityPanel } from './ConversationActivityPanel';
 
 interface ConversationMessageBubbleProps {
   message: Message;
+  messageIndex: number;
   isPromptTarget: boolean;
   isActiveSearchTarget: boolean;
   showSessionActivity: boolean;
@@ -17,7 +18,6 @@ interface ConversationMessageBubbleProps {
   };
   isActivityExpanded: boolean;
   onToggleActivity: () => void;
-  setUserPromptRef?: (element: HTMLDivElement | null) => void;
 }
 
 const markdownComponents: Components = {
@@ -36,19 +36,19 @@ const markdownComponents: Components = {
 
 export const ConversationMessageBubble: React.FC<ConversationMessageBubbleProps> = ({
   message,
+  messageIndex,
   isPromptTarget,
   isActiveSearchTarget,
   showSessionActivity,
   activity,
   isActivityExpanded,
   onToggleActivity,
-  setUserPromptRef,
 }) => {
   const hasActivity = message.sender === 'agent' && activity && activity.toolCalls.length > 0;
 
   return (
     <div
-      ref={setUserPromptRef}
+      data-message-index={messageIndex}
       className={`message-bubble ${message.sender} ${
         message.sender === 'user' && isPromptTarget ? 'prompt-target' : ''
       } ${isActiveSearchTarget ? 'search-target-active' : ''}`}

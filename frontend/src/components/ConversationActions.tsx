@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../services/apiClient';
 import type { Conversation } from '../types';
+import { ConfirmModal } from './ConfirmModal';
 
 interface ConversationActionsProps {
   conversation: Conversation;
@@ -65,21 +66,6 @@ export const ConversationActions: React.FC<ConversationActionsProps> = ({
           },
     [isArchiveAction, pendingAction]
   );
-
-  useEffect(() => {
-    if (!pendingAction) {
-      return;
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setPendingAction(null);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [pendingAction]);
 
   const toggleStatusMutation = useMutation({
     mutationFn: async () => {
@@ -152,38 +138,15 @@ export const ConversationActions: React.FC<ConversationActionsProps> = ({
         </button>
       </div>
       {pendingAction ? (
-        <div className="confirm-modal-overlay" onClick={() => setPendingAction(null)}>
-          <div
-            className="confirm-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="confirm-modal-title"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <h3 id="confirm-modal-title">{confirmCopy.title}</h3>
-            <p>{confirmCopy.description}</p>
-            <div className="confirm-modal-actions">
-              <button
-                type="button"
-                className="confirm-modal-button"
-                onClick={() => setPendingAction(null)}
-                disabled={isConfirmPending}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className={`confirm-modal-button confirm-modal-button-primary ${
-                  pendingAction === 'delete' ? 'danger' : ''
-                }`}
-                onClick={handleConfirm}
-                disabled={isConfirmPending}
-              >
-                {isConfirmPending ? 'Working...' : confirmCopy.confirmLabel}
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmModal
+          title={confirmCopy.title}
+          description={confirmCopy.description}
+          confirmLabel={confirmCopy.confirmLabel}
+          isDanger={pendingAction === 'delete'}
+          isPending={isConfirmPending}
+          onCancel={() => setPendingAction(null)}
+          onConfirm={handleConfirm}
+        />
       ) : null}
     </>
   );

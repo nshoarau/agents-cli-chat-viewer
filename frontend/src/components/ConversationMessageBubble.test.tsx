@@ -34,6 +34,7 @@ describe('ConversationMessageBubble', () => {
         showSessionActivity={false}
         isActivityExpanded={false}
         onToggleActivity={vi.fn()}
+        onOpenFile={vi.fn()}
       />
     );
 
@@ -58,9 +59,59 @@ describe('ConversationMessageBubble', () => {
         showSessionActivity={false}
         isActivityExpanded={false}
         onToggleActivity={vi.fn()}
+        onOpenFile={vi.fn()}
       />
     );
 
     expect(screen.getByText('Search term')).toHaveClass('message-search-highlight');
+  });
+
+  it('opens file references mentioned directly in the message content', () => {
+    const onOpenFile = vi.fn();
+
+    render(
+      <ConversationMessageBubble
+        message={makeMessage({
+          content: 'Please inspect [the app file](src/app.ts) and `src/utils.ts`.',
+        })}
+        messageIndex={0}
+        onShowToast={vi.fn()}
+        isPromptTarget={false}
+        isActiveSearchTarget={false}
+        showSessionActivity={false}
+        isActivityExpanded={false}
+        onToggleActivity={vi.fn()}
+        onOpenFile={onOpenFile}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'the app file' }));
+    expect(onOpenFile).toHaveBeenCalledWith('src/app.ts');
+
+    fireEvent.click(screen.getByRole('button', { name: 'src/utils.ts' }));
+    expect(onOpenFile).toHaveBeenCalledWith('src/utils.ts');
+  });
+
+  it('does not link git refs, folders, or bare hosts from message content', () => {
+    render(
+      <ConversationMessageBubble
+        message={makeMessage({
+          content: 'Ignore origin/main, src/components, and 127.0.0.1/api while opening src/app.ts.',
+        })}
+        messageIndex={0}
+        onShowToast={vi.fn()}
+        isPromptTarget={false}
+        isActiveSearchTarget={false}
+        showSessionActivity={false}
+        isActivityExpanded={false}
+        onToggleActivity={vi.fn()}
+        onOpenFile={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'src/app.ts' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'origin/main' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'src/components' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '127.0.0.1/api' })).not.toBeInTheDocument();
   });
 });

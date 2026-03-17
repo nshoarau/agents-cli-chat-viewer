@@ -1,14 +1,27 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { List, useDynamicRowHeight, type ListImperativeAPI } from 'react-window';
-import type { ActivityToolCall, Conversation } from '../types';
+import { AxiosError } from 'axios';
+import type { ActivityToolCall, Conversation, ConversationFilePreview } from '../types';
+import { apiClient } from '../services/apiClient';
 import { ConversationDetailHeader } from './ConversationDetailHeader';
 import { VirtualizedConversationRow } from './VirtualizedConversationRow';
+import {
+  buildActivitySummary,
+  buildTranscriptMarkdown,
+  loadConversationDetailPreferences,
+  persistConversationDetailPreferences,
+  toConversationExportFileStem,
+} from './conversationDetailUtils';
+import { FileViewerModal } from './FileViewerModal';
 
 interface ConversationDetailProps {
   conversation?: Conversation;
   isLoading: boolean;
   onShowToast: (message: string, tone?: 'success' | 'error' | 'info') => void;
   onConversationDeleted: (deletedId: string) => void;
+  isSidebarCollapsed: boolean;
+  onToggleSidebar: () => void;
+  onSetSidebarCollapsed: (collapsed: boolean) => void;
 }
 
 interface AgentActivityGroup {
@@ -37,27 +50,63 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
   isLoading,
   onShowToast,
   onConversationDeleted,
+  isSidebarCollapsed,
+  onToggleSidebar,
+  onSetSidebarCollapsed,
 }) => {
   const conversationId = conversation?.id ?? '__no-conversation__';
   const lastAutoScrolledSearchRef = useRef<Record<string, string>>({});
   const exactScrollFrameRef = useRef<number | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const listRef = useRef<ListImperativeAPI | null>(null);
+  const initialPreferences = useMemo(() => loadConversationDetailPreferences(), []);
   const [sessionActivityVisibility, setSessionActivityVisibility] = useState<Record<string, boolean>>(
-    {}
+    initialPreferences.sessionActivityVisibility
   );
   const [agentActivityVisibility, setAgentActivityVisibility] = useState<Record<string, boolean>>(
-    {}
+    initialPreferences.agentActivityVisibility
   );
-  const [promptNavigationIndex, setPromptNavigationIndex] = useState<Record<string, number>>({});
-  const [searchQuery, setSearchQuery] = useState<Record<string, string>>({});
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<Record<string, string>>({});
-  const [searchNavigationIndex, setSearchNavigationIndex] = useState<Record<string, number>>({});
+  const [promptNavigationIndex, setPromptNavigationIndex] = useState<Record<string, number>>(
+    initialPreferences.promptNavigationIndex
+  );
+  const [searchQuery, setSearchQuery] = useState<Record<string, string>>(initialPreferences.searchQuery);
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<Record<string, string>>(
+    initialPreferences.searchQuery
+  );
+  const [searchNavigationIndex, setSearchNavigationIndex] = useState<Record<string, number>>(
+    initialPreferences.searchNavigationIndex
+  );
+  const [promptHighlightActive, setPromptHighlightActive] = useState<Record<string, boolean>>({});
+  const [filePreviewPath, setFilePreviewPath] = useState<string | null>(null);
+  const [filePreview, setFilePreview] = useState<ConversationFilePreview | null>(null);
+  const [filePreviewError, setFilePreviewError] = useState<string | null>(null);
+  const [isFilePreviewLoading, setIsFilePreviewLoading] = useState(false);
+  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(initialPreferences.headerCollapsed);
   const rowHeightCache = useDynamicRowHeight({
     defaultRowHeight: 240,
     key: conversationId,
   });
   const conversationMessages = useMemo(() => conversation?.messages ?? [], [conversation]);
+
+  useEffect(() => {
+    persistConversationDetailPreferences({
+      sessionActivityVisibility,
+      agentActivityVisibility,
+      searchQuery,
+      promptNavigationIndex,
+      searchNavigationIndex,
+      headerCollapsed: isHeaderCollapsed,
+      sidebarCollapsed: isSidebarCollapsed,
+    });
+  }, [
+    agentActivityVisibility,
+    isHeaderCollapsed,
+    isSidebarCollapsed,
+    promptNavigationIndex,
+    searchNavigationIndex,
+    searchQuery,
+    sessionActivityVisibility,
+  ]);
 
   const userPromptIndexes = useMemo(
     () =>
@@ -126,7 +175,9 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
     promptNavigationIndex[conversationId] ?? 0,
     Math.max(userPromptIndexes.length - 1, 0)
   );
-  const activePromptIndex = userPromptIndexes[activePromptPosition];
+  const activePromptIndex = promptHighlightActive[conversationId]
+    ? userPromptIndexes[activePromptPosition]
+    : undefined;
   const activeSearchPosition = Math.min(
     searchNavigationIndex[conversationId] ?? 0,
     Math.max(searchMatchIndexes.length - 1, 0)
@@ -300,6 +351,9 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
         [`${conversationId}:${index}`]: !current[`${conversationId}:${index}`],
       })),
     onShowToast,
+    onOpenFile: (filePath: string) => {
+      setFilePreviewPath(filePath);
+    },
   };
 
   const showSessionActivity = sessionActivityVisibility[conversationId] ?? true;
@@ -320,6 +374,10 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
     setPromptNavigationIndex((current) => ({
       ...current,
       [conversationId]: normalizedPosition,
+    }));
+    setPromptHighlightActive((current) => ({
+      ...current,
+      [conversationId]: true,
     }));
     listRef.current?.scrollToRow({
       index: messageIndex,
@@ -428,6 +486,71 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
     navigateToSearchMatch,
   ]);
 
+  useEffect(() => {
+    if (!conversation || !filePreviewPath) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadPreview = async () => {
+      setIsFilePreviewLoading(true);
+      setFilePreviewError(null);
+
+      try {
+        const response = await apiClient.get<ConversationFilePreview>(
+          `/conversations/${conversation.id}/files/content`,
+          {
+            params: {
+              path: filePreviewPath,
+            },
+          }
+        );
+
+        if (!cancelled) {
+          setFilePreview(response.data);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          const message =
+            error instanceof AxiosError
+              ? error.response?.data?.error || error.message
+              : error instanceof Error
+                ? error.message
+                : 'Failed to load file preview.';
+          setFilePreview(null);
+          setFilePreviewError(message);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsFilePreviewLoading(false);
+        }
+      }
+    };
+
+    void loadPreview();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [conversation, filePreviewPath]);
+
+  const downloadExport = useCallback(
+    (fileName: string, content: string, mimeType: string) => {
+      const blob = new Blob([content], { type: mimeType });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      onShowToast(`${fileName} exported.`);
+    },
+    [onShowToast]
+  );
+
   if (isLoading) {
     return <div className="detail-placeholder">Loading conversation...</div>;
   }
@@ -440,12 +563,16 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
     );
   }
 
+  const exportFileStem = toConversationExportFileStem(conversation);
+
   return (
-    <div className="conversation-detail">
+    <div className={`conversation-detail ${isHeaderCollapsed ? 'conversation-detail-immersive' : ''}`}>
       <ConversationDetailHeader
         conversation={conversation}
         onShowToast={onShowToast}
         onConversationDeleted={onConversationDeleted}
+        isHeaderCollapsed={isHeaderCollapsed}
+        isSidebarCollapsed={isSidebarCollapsed}
         hasSessionActivity={Boolean(conversation.sessionActivity)}
         showSessionActivity={showSessionActivity}
         hasExpandableActivities={agentActivityKeys.length > 0}
@@ -474,9 +601,37 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
             [conversationId]: !(current[conversationId] ?? true),
           }))
         }
+        onToggleHeaderCollapsed={() => setIsHeaderCollapsed((current) => !current)}
+        onToggleSidebar={onToggleSidebar}
+        onToggleFullScreen={() => {
+          const nextCollapsed = !(isHeaderCollapsed && isSidebarCollapsed);
+          setIsHeaderCollapsed(nextCollapsed);
+          onSetSidebarCollapsed(nextCollapsed);
+        }}
         onToggleAllActivities={toggleAllAgentActivities}
         onPreviousPrompt={() => navigateToPrompt(activePromptPosition - 1)}
         onNextPrompt={() => navigateToPrompt(activePromptPosition + 1)}
+        onExportJson={() =>
+          downloadExport(
+            `${exportFileStem}.json`,
+            JSON.stringify(conversation, null, 2),
+            'application/json'
+          )
+        }
+        onExportMarkdown={() =>
+          downloadExport(
+            `${exportFileStem}.md`,
+            buildTranscriptMarkdown(conversation),
+            'text/markdown;charset=utf-8'
+          )
+        }
+        onExportActivity={() =>
+          downloadExport(
+            `${exportFileStem}-activity.txt`,
+            buildActivitySummary(conversation),
+            'text/plain;charset=utf-8'
+          )
+        }
         disablePreviousSearchMatch={searchMatchIndexes.length === 0 || activeSearchPosition === 0}
         disableNextSearchMatch={
           searchMatchIndexes.length === 0 || activeSearchPosition >= searchMatchIndexes.length - 1
@@ -497,6 +652,22 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
           style={{ height: '100%' }}
         />
       </div>
+      {filePreviewPath ? (
+        <FileViewerModal
+          filePath={filePreviewPath}
+          resolvedPath={filePreview?.filePath}
+          content={filePreview?.content ?? ''}
+          truncated={Boolean(filePreview?.truncated)}
+          isLoading={isFilePreviewLoading}
+          error={filePreviewError ?? undefined}
+          onClose={() => {
+            setFilePreviewPath(null);
+            setFilePreview(null);
+            setFilePreviewError(null);
+            setIsFilePreviewLoading(false);
+          }}
+        />
+      ) : null}
     </div>
   );
 };

@@ -30,7 +30,7 @@ const rowStyle: CSSProperties = {
   paddingBottom: '24px',
 };
 
-export const VirtualizedConversationRow: React.FC<VirtualizedConversationRowProps> = ({
+export function VirtualizedConversationRow({
   ariaAttributes,
   index,
   style,
@@ -44,7 +44,7 @@ export const VirtualizedConversationRow: React.FC<VirtualizedConversationRowProp
   agentActivityVisibility,
   conversationId,
   onToggleActivity,
-}) => {
+}: VirtualizedConversationRowProps): React.JSX.Element | null {
   const message = messages[index];
   if (!message) {
     return null;
@@ -66,4 +66,4 @@ export const VirtualizedConversationRow: React.FC<VirtualizedConversationRowProp
       />
     </div>
   );
-};
+}

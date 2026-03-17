@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { List, useDynamicRowHeight, useListRef, type ListImperativeAPI } from 'react-window';
+import { List, useDynamicRowHeight, type ListImperativeAPI } from 'react-window';
 import type { ActivityToolCall, Conversation } from '../types';
 import { ConversationDetailHeader } from './ConversationDetailHeader';
 import { VirtualizedConversationRow } from './VirtualizedConversationRow';
@@ -41,7 +41,8 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
   const conversationId = conversation?.id ?? '__no-conversation__';
   const lastAutoScrolledSearchRef = useRef<Record<string, string>>({});
   const exactScrollFrameRef = useRef<number | null>(null);
-  const listRef = useListRef() as React.RefObject<ListImperativeAPI | null>;
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const listRef = useRef<ListImperativeAPI | null>(null);
   const [sessionActivityVisibility, setSessionActivityVisibility] = useState<Record<string, boolean>>(
     {}
   );
@@ -121,6 +122,16 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
       }, []),
     [conversationMessages]
   );
+  const activePromptPosition = Math.min(
+    promptNavigationIndex[conversationId] ?? 0,
+    Math.max(userPromptIndexes.length - 1, 0)
+  );
+  const activePromptIndex = userPromptIndexes[activePromptPosition];
+  const activeSearchPosition = Math.min(
+    searchNavigationIndex[conversationId] ?? 0,
+    Math.max(searchMatchIndexes.length - 1, 0)
+  );
+  const activeSearchTargetIndex = searchMatchIndexes[activeSearchPosition];
 
   useEffect(() => {
     return () => {
@@ -218,8 +229,9 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
 
   const agentActivities = (() => {
     const nextActivities: Record<number, AgentActivityGroup> = {};
+    const sessionActivity = conversation?.sessionActivity;
 
-    if (!conversation?.sessionActivity) {
+    if (!sessionActivity) {
       return nextActivities;
     }
 
@@ -233,7 +245,7 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
       const agentTime = agentTimestamp ? new Date(agentTimestamp).getTime() : null;
       const nextMessageTime = nextMessageTimestamp ? new Date(nextMessageTimestamp).getTime() : null;
 
-      const toolCalls = conversation.sessionActivity.toolCalls.filter((toolCall) => {
+      const toolCalls = sessionActivity.toolCalls.filter((toolCall) => {
         if (!toolCall.timestamp || agentTime === null) {
           return false;
         }
@@ -273,17 +285,6 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
 
     return nextActivities;
   })();
-
-  const activePromptPosition = Math.min(
-    promptNavigationIndex[conversationId] ?? 0,
-    Math.max(userPromptIndexes.length - 1, 0)
-  );
-  const activePromptIndex = userPromptIndexes[activePromptPosition];
-  const activeSearchPosition = Math.min(
-    searchNavigationIndex[conversationId] ?? 0,
-    Math.max(searchMatchIndexes.length - 1, 0)
-  );
-  const activeSearchTargetIndex = searchMatchIndexes[activeSearchPosition];
   const rowProps = {
     messages: conversationMessages,
     searchHighlightQuery: normalizedSearchQuery,
@@ -301,18 +302,6 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
     onShowToast,
   };
 
-  if (isLoading) {
-    return <div className="detail-placeholder">Loading conversation...</div>;
-  }
-
-  if (!conversation) {
-    return (
-      <div className="detail-placeholder">
-        Select a conversation from the list to view its details.
-      </div>
-    );
-  }
-
   const showSessionActivity = sessionActivityVisibility[conversationId] ?? true;
   const agentActivityKeys = Object.keys(agentActivities).filter(
     (key) => agentActivities[Number(key)]?.toolCalls.length > 0
@@ -321,7 +310,7 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
     agentActivityKeys.length > 0 &&
     agentActivityKeys.every((key) => agentActivityVisibility[`${conversationId}:${key}`]);
 
-  const navigateToPrompt = (nextPosition: number) => {
+  const navigateToPrompt = useCallback((nextPosition: number) => {
     const normalizedPosition = Math.max(0, Math.min(nextPosition, userPromptIndexes.length - 1));
     const messageIndex = userPromptIndexes[normalizedPosition];
     if (messageIndex === undefined) {
@@ -338,7 +327,7 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
       align: 'center',
     });
     scrollMessageIntoExactView(messageIndex, { align: 'center', behavior: 'smooth' });
-  };
+  }, [conversationId, listRef, scrollMessageIntoExactView, userPromptIndexes]);
 
   const toggleAllAgentActivities = () => {
     setAgentActivityVisibility((current) => {
@@ -350,7 +339,7 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
     });
   };
 
-  const navigateToSearchMatch = (nextPosition: number) => {
+  const navigateToSearchMatch = useCallback((nextPosition: number) => {
     const normalizedPosition = Math.max(0, Math.min(nextPosition, searchMatchIndexes.length - 1));
     const messageIndex = searchMatchIndexes[normalizedPosition];
     if (messageIndex === undefined) {
@@ -369,7 +358,87 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
       });
       scrollMessageIntoExactView(messageIndex, { align: 'start', behavior: 'smooth' });
     });
-  };
+  }, [conversationId, listRef, scrollMessageIntoExactView, searchMatchIndexes]);
+
+  useEffect(() => {
+    if (!conversation) {
+      return;
+    }
+
+    const isEditableTarget = (target: EventTarget | null): boolean => {
+      if (!(target instanceof HTMLElement)) {
+        return false;
+      }
+
+      return (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable
+      );
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
+        event.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+        return;
+      }
+
+      if (event.key === '/' && !event.metaKey && !event.ctrlKey && !event.altKey && !isEditableTarget(event.target)) {
+        event.preventDefault();
+        searchInputRef.current?.focus();
+        return;
+      }
+
+      if (!event.altKey || event.metaKey || event.ctrlKey) {
+        return;
+      }
+
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+
+        if (event.shiftKey) {
+          navigateToPrompt(activePromptPosition + 1);
+          return;
+        }
+
+        navigateToSearchMatch(activeSearchPosition + 1);
+      }
+
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+
+        if (event.shiftKey) {
+          navigateToPrompt(activePromptPosition - 1);
+          return;
+        }
+
+        navigateToSearchMatch(activeSearchPosition - 1);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    activePromptPosition,
+    activeSearchPosition,
+    conversation,
+    navigateToPrompt,
+    navigateToSearchMatch,
+  ]);
+
+  if (isLoading) {
+    return <div className="detail-placeholder">Loading conversation...</div>;
+  }
+
+  if (!conversation) {
+    return (
+      <div className="detail-placeholder">
+        Select a conversation from the list to view its details.
+      </div>
+    );
+  }
 
   return (
     <div className="conversation-detail">
@@ -382,6 +451,7 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
         hasExpandableActivities={agentActivityKeys.length > 0}
         allAgentActivitiesExpanded={allAgentActivitiesExpanded}
         searchQuery={activeSearchQuery}
+        searchInputRef={searchInputRef}
         searchMatchPosition={searchMatchIndexes.length === 0 ? 0 : activeSearchPosition + 1}
         searchMatchCount={searchMatchIndexes.length}
         promptPosition={activePromptPosition + 1}

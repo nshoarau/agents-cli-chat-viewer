@@ -30,6 +30,7 @@ const highlightTextChildren = (children: React.ReactNode, query: string): React.
   }
 
   const pattern = new RegExp(`(${escapeRegExp(query)})`, 'gi');
+  const lowerQuery = query.toLocaleLowerCase();
 
   return React.Children.map(children, (child) => {
     if (typeof child === 'string') {
@@ -40,7 +41,7 @@ const highlightTextChildren = (children: React.ReactNode, query: string): React.
       }
 
       return segments.map((segment, index) =>
-        pattern.test(segment) ? (
+        segment.toLocaleLowerCase() === lowerQuery ? (
           <mark key={`${segment}-${index}`} className="message-search-highlight">
             {segment}
           </mark>
@@ -50,11 +51,8 @@ const highlightTextChildren = (children: React.ReactNode, query: string): React.
       );
     }
 
-    if (React.isValidElement(child) && child.props && 'children' in child.props) {
-      return React.cloneElement(child, {
-        ...child.props,
-        children: highlightTextChildren(child.props.children, query),
-      });
+    if (React.isValidElement<{ children?: React.ReactNode }>(child)) {
+      return React.cloneElement(child, undefined, highlightTextChildren(child.props.children, query));
     }
 
     return child;

@@ -12,6 +12,7 @@ interface ConversationDetailHeaderProps {
   hasExpandableActivities: boolean;
   allAgentActivitiesExpanded: boolean;
   searchQuery: string;
+  searchInputRef: React.RefObject<HTMLInputElement | null>;
   searchMatchPosition: number;
   searchMatchCount: number;
   promptPosition: number;
@@ -38,6 +39,7 @@ export const ConversationDetailHeader: React.FC<ConversationDetailHeaderProps> =
   hasExpandableActivities,
   allAgentActivitiesExpanded,
   searchQuery,
+  searchInputRef,
   searchMatchPosition,
   searchMatchCount,
   promptPosition,
@@ -74,11 +76,13 @@ export const ConversationDetailHeader: React.FC<ConversationDetailHeaderProps> =
         </div>
         <div className="detail-utility-strip">
           <input
+            ref={searchInputRef}
             type="search"
             className="transcript-search-input"
             placeholder="Search this conversation"
             value={searchQuery}
             onChange={(event) => onSearchQueryChange(event.target.value)}
+            title="Shortcuts: / or Ctrl/Cmd+F to focus, Alt+Up/Down for matches"
           />
           <div className="transcript-search">
             <span className="detail-control-label">Matches</span>

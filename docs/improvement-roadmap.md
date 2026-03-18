@@ -17,10 +17,10 @@ conversation viewer. Keep it aligned with the current shipped UI.
 - [x] Setup script and `.env.example` for faster local install
 - [x] Production build/start flow with backend-served frontend assets
 - [x] Runtime state moved to user-local config/data directories by default
+- [x] Docker Compose as an optional packaging path
 
 ## Next priorities
 
-- [ ] Add Docker Compose as an optional packaging path, not the primary install flow
 - [ ] Show backend/index health in the UI: watched folders, indexed files, last refresh
 - [ ] Improve empty states for conversation list, activity panels, and file panels
 - [ ] Add keyboard shortcuts for search, prompt navigation, and transcript focus mode

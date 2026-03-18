@@ -27,6 +27,18 @@ Default URL:
 
 - App: `http://localhost:3000`
 
+### Optional Docker path
+
+If you prefer containers:
+
+```bash
+docker compose up --build
+```
+
+This starts the app on `http://localhost:3000` with persistent Docker volumes for config and data.
+
+If you want the onboarding wizard to auto-detect agent folders from the host, use `docker-compose.sources.yml.example` as a starting point and mount the host paths you care about.
+
 ### 3. First run in the UI
 
 1. Open `Watched Folders`
@@ -84,7 +96,7 @@ npm run dev:serve
 ```bash
 npm test
 npm run lint
-npm run build --prefix frontend
+npm run build
 npm run test:e2e --prefix frontend
 ```
 

@@ -1,0 +1,8 @@
+services:
+  app:
+    volumes:
+      # Mount the host agent folders you want the onboarding wizard to auto-detect.
+      # Adjust the host-side paths if your logs live elsewhere.
+      - ${HOME}/.claude/projects:/home/node/.claude/projects:ro
+      - ${HOME}/.codex/sessions:/home/node/.codex/sessions:ro
+      - ${HOME}/.gemini/tmp:/home/node/.gemini/tmp:ro

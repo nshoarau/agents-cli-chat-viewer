@@ -1,0 +1,21 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: agents-cli-chat-viewer:local
+    container_name: agents-cli-chat-viewer
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      AGENTS_CLI_CHAT_VIEWER_CONFIG_DIR: /home/node/.config/agents-cli-chat-viewer
+      AGENTS_CLI_CHAT_VIEWER_DATA_DIR: /home/node/.local/share/agents-cli-chat-viewer
+    volumes:
+      - viewer_config:/home/node/.config/agents-cli-chat-viewer
+      - viewer_data:/home/node/.local/share/agents-cli-chat-viewer
+    restart: unless-stopped
+
+volumes:
+  viewer_config:
+  viewer_data:

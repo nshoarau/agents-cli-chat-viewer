@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
 import { apiClient } from '../services/apiClient';
-import type { Conversation, ConversationListResponse } from '../types';
+import type { Conversation, ConversationListResponse, WatchFoldersResponse } from '../types';
 import { ConversationList } from './ConversationList';
 import { ConversationDetail } from './ConversationDetail';
 import { useLogUpdates } from '../hooks/useLogUpdates';
@@ -47,6 +47,22 @@ export const Dashboard: React.FC = () => {
   const { showArchived, searchQuery, selectedAgent } = useConversationStore();
 
   useLogUpdates();
+
+  const showToast = (message: string, tone: ToastState['tone'] = 'success') => {
+    setToast({
+      id: Date.now(),
+      message,
+      tone,
+    });
+  };
+
+  const { data: watchFoldersView } = useQuery({
+    queryKey: ['watch-folders'],
+    queryFn: async () => {
+      const response = await apiClient.get<WatchFoldersResponse>('/config/watch-folders');
+      return response.data;
+    },
+  });
 
   const {
     data: conversationPages,
@@ -147,14 +163,11 @@ export const Dashboard: React.FC = () => {
   }, [conversations, selectedAgent, showArchived]);
 
   const selectedConversation = conversations.find((item) => item.id === selectedId);
-
-  const showToast = (message: string, tone: ToastState['tone'] = 'success') => {
-    setToast({
-      id: Date.now(),
-      message,
-      tone,
-    });
-  };
+  const configuredWatchFolders = watchFoldersView?.folders ?? [];
+  const recommendedWatchFolders = watchFoldersView?.recommendations ?? [];
+  const hasIndexedConversations = totalConversations > 0;
+  const hasAnyConfiguredFolders = configuredWatchFolders.length > 0;
+  const hasRecommendations = recommendedWatchFolders.length > 0;
 
   const handleConversationDeleted = (deletedId: string) => {
     setSelectedId(getNextConversationIdAfterDelete(filteredConversations, deletedId));
@@ -174,6 +187,81 @@ export const Dashboard: React.FC = () => {
   if (detailError) {
       console.error('Detail Query Error:', detailError);
   }
+
+  const renderSidebarEmptyState = () => {
+    if (!hasIndexedConversations) {
+      return (
+        <div className="empty-state-card empty-state-card-sidebar">
+          <div className="empty-state-eyebrow">Onboarding</div>
+          <h3>No conversations indexed yet</h3>
+          <p>
+            {hasRecommendations
+              ? `I found ${recommendedWatchFolders.length} recommended agent folder${
+                  recommendedWatchFolders.length === 1 ? '' : 's'
+                } on this machine. Enable them to start importing sessions.`
+              : hasAnyConfiguredFolders
+                ? 'Folders are configured, but no supported conversations have been indexed yet.'
+                : 'Add a watched folder to start indexing Codex, Claude, or Gemini sessions.'}
+          </p>
+          <div className="empty-state-actions">
+            <button className="btn-add-folder" onClick={() => setIsWatchFoldersOpen(true)}>
+              {hasRecommendations ? 'Review Suggested Sources' : 'Set Up Watched Folders'}
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="empty-list">
+        {searchQuery
+          ? 'No conversations match the current search.'
+          : 'No conversations match the current filters.'}
+      </div>
+    );
+  };
+
+  const renderDetailEmptyState = () => {
+    if (isDetailLoading) {
+      return <div className="detail-placeholder">Loading conversation...</div>;
+    }
+
+    if (detailError) {
+      return <div className="detail-placeholder">Error: {getErrorMessage(detailError)}</div>;
+    }
+
+    if (!hasIndexedConversations) {
+      return (
+        <div className="detail-placeholder">
+          <div className="empty-state-card empty-state-card-detail">
+            <div className="empty-state-eyebrow">Get Started</div>
+            <h3>Connect your agent folders</h3>
+            <p>
+              Use the watched folders wizard to enable detected Claude, Codex, or Gemini locations,
+              or add a custom path manually.
+            </p>
+            <div className="empty-state-actions">
+              <button className="btn-add-folder" onClick={() => setIsWatchFoldersOpen(true)}>
+                Open Watched Folders
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <ConversationDetail
+        conversation={conversation}
+        isLoading={false}
+        onShowToast={showToast}
+        onConversationDeleted={handleConversationDeleted}
+        isSidebarCollapsed={isSidebarCollapsed}
+        onToggleSidebar={() => setIsSidebarCollapsed((current) => !current)}
+        onSetSidebarCollapsed={setIsSidebarCollapsed}
+      />
+    );
+  };
 
   return (
     <div className="dashboard-container">
@@ -215,6 +303,7 @@ export const Dashboard: React.FC = () => {
               onSelect={setSelectedId}
               selectedId={selectedId}
               selectedAgentMode={selectedAgent}
+              emptyState={renderSidebarEmptyState()}
             />
           )}
           {selectedAgent !== 'none' && hasNextPage ? (
@@ -232,27 +321,15 @@ export const Dashboard: React.FC = () => {
           )}
         </aside>
         <section className="detail-panel">
-          {isDetailLoading ? (
-            <div className="detail-placeholder">Loading conversation...</div>
-          ) : detailError ? (
-             <div className="detail-placeholder">Error: {getErrorMessage(detailError)}</div>
-          ) : (
-            <ConversationDetail
-              conversation={conversation!}
-              isLoading={false}
-              onShowToast={showToast}
-              onConversationDeleted={handleConversationDeleted}
-              isSidebarCollapsed={isSidebarCollapsed}
-              onToggleSidebar={() => setIsSidebarCollapsed((current) => !current)}
-              onSetSidebarCollapsed={setIsSidebarCollapsed}
-            />
-          )}
+          {renderDetailEmptyState()}
         </section>
       </main>
       {toast ? <ToastNotification tone={toast.tone} message={toast.message} /> : null}
       <WatchFoldersPanel
         isOpen={isWatchFoldersOpen}
         onClose={() => setIsWatchFoldersOpen(false)}
+        onShowToast={showToast}
+        shouldHighlightRecommendations={!hasIndexedConversations && hasRecommendations}
       />
     </div>
   );

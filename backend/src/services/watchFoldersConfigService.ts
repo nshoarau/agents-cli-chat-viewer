@@ -11,6 +11,18 @@ export interface WatchFolderEntry {
   kind: 'default' | 'custom' | 'legacy';
 }
 
+export interface WatchFolderRecommendation {
+  label: string;
+  sourcePath: string;
+  targetName: string;
+  kind: 'default';
+}
+
+export interface WatchFoldersView {
+  folders: WatchFolderEntry[];
+  recommendations: WatchFolderRecommendation[];
+}
+
 interface WatchFoldersConfigFile {
   version: 1;
   folders: WatchFolderEntry[];
@@ -74,13 +86,41 @@ export class WatchFoldersConfigService {
 
   public async initialize(): Promise<void> {
     this.config = await this.loadConfig();
-    this.config.folders = await this.mergeDiscoveredFolders(this.config.folders);
+    this.config.folders = await this.mergeLegacyLinkedFolders(this.config.folders);
     await this.ensureLinks();
     await this.saveConfig();
   }
 
   public listFolders(): WatchFolderEntry[] {
     return [...this.config.folders].sort((left, right) => left.label.localeCompare(right.label));
+  }
+
+  public async getView(): Promise<WatchFoldersView> {
+    return {
+      folders: this.listFolders(),
+      recommendations: await this.listRecommendations(),
+    };
+  }
+
+  public async listRecommendations(): Promise<WatchFolderRecommendation[]> {
+    const recommendations: WatchFolderRecommendation[] = [];
+
+    for (const candidate of defaultFolderCandidates()) {
+      if (!(await pathExists(candidate.sourcePath))) {
+        continue;
+      }
+
+      const alreadyTracked = this.config.folders.some(
+        (entry) => path.resolve(entry.sourcePath) === path.resolve(candidate.sourcePath)
+      );
+      if (alreadyTracked) {
+        continue;
+      }
+
+      recommendations.push(candidate);
+    }
+
+    return recommendations.sort((left, right) => left.label.localeCompare(right.label));
   }
 
   public async addFolder(sourcePath: string, label?: string): Promise<WatchFolderEntry> {
@@ -97,12 +137,19 @@ export class WatchFoldersConfigService {
       return existing;
     }
 
+    const defaultCandidate = defaultFolderCandidates().find(
+      (candidate) => path.resolve(candidate.sourcePath) === absoluteSourcePath
+    );
+    const nextLabel = label?.trim() || defaultCandidate?.label || path.basename(absoluteSourcePath);
+
     const entry: WatchFolderEntry = {
       id: randomId(),
-      label: label?.trim() || path.basename(absoluteSourcePath),
+      label: nextLabel,
       sourcePath: absoluteSourcePath,
-      targetName: this.createUniqueTargetName(label?.trim() || path.basename(absoluteSourcePath)),
-      kind: 'custom',
+      targetName: defaultCandidate
+        ? this.createUniqueTargetName(defaultCandidate.targetName)
+        : this.createUniqueTargetName(nextLabel),
+      kind: defaultCandidate?.kind ?? 'custom',
     };
 
     this.config.folders.push(entry);
@@ -149,26 +196,8 @@ export class WatchFoldersConfigService {
     await fs.writeFile(this.configPath, JSON.stringify(this.config, null, 2));
   }
 
-  private async mergeDiscoveredFolders(existingEntries: WatchFolderEntry[]): Promise<WatchFolderEntry[]> {
+  private async mergeLegacyLinkedFolders(existingEntries: WatchFolderEntry[]): Promise<WatchFolderEntry[]> {
     const merged = [...existingEntries];
-
-    for (const candidate of defaultFolderCandidates()) {
-      if (!(await pathExists(candidate.sourcePath))) {
-        continue;
-      }
-
-      const alreadyTracked = merged.some(
-        (entry) => path.resolve(entry.sourcePath) === path.resolve(candidate.sourcePath)
-      );
-      if (alreadyTracked) {
-        continue;
-      }
-
-      merged.push({
-        id: randomId(),
-        ...candidate,
-      });
-    }
 
     const directChildren = await fs.readdir(this.logsDir, { withFileTypes: true });
     for (const child of directChildren) {
@@ -230,8 +259,8 @@ export class WatchFoldersConfigService {
     await fs.symlink(entry.sourcePath, targetPath, sourceStats.isDirectory() ? 'dir' : 'file');
   }
 
-  private createUniqueTargetName(label: string): string {
-    const base = slugify(label);
+  private createUniqueTargetName(labelOrSlug: string): string {
+    const base = slugify(labelOrSlug);
     const existing = new Set(this.config.folders.map((entry) => entry.targetName));
 
     if (!existing.has(base)) {

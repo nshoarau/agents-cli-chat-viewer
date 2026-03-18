@@ -72,6 +72,18 @@ export interface WatchFolderEntry {
   kind: 'default' | 'custom' | 'legacy';
 }
 
+export interface WatchFolderRecommendation {
+  label: string;
+  sourcePath: string;
+  targetName: string;
+  kind: 'default';
+}
+
+export interface WatchFoldersResponse {
+  folders: WatchFolderEntry[];
+  recommendations: WatchFolderRecommendation[];
+}
+
 export interface ConversationFilePreview {
   filePath: string;
   editorPath?: string;

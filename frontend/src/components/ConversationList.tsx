@@ -9,6 +9,7 @@ interface ConversationListProps {
   onSelect: (id: string) => void;
   selectedId?: string;
   selectedAgentMode: 'none' | 'all' | ConversationSummary['agentType'];
+  emptyState?: React.ReactNode;
 }
 
 type HeaderItem =
@@ -25,6 +26,7 @@ export const ConversationList: React.FC<ConversationListProps> = ({
   onSelect,
   selectedId,
   selectedAgentMode,
+  emptyState,
 }) => {
   const [collapsedProjects, setCollapsedProjects] = useState<Record<string, boolean>>({});
 
@@ -153,7 +155,7 @@ export const ConversationList: React.FC<ConversationListProps> = ({
   };
 
   if (conversations.length === 0) {
-    return <div className="empty-list">No conversations found. Add some logs to get started!</div>;
+    return <>{emptyState ?? <div className="empty-list">No conversations found. Add some logs to get started!</div>}</>;
   }
 
   return (

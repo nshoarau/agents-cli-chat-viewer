@@ -1,31 +1,35 @@
 # Improvement roadmap
 
 This file tracks the next product and engineering improvements for the
-conversation viewer so they do not get lost between sessions.
+conversation viewer. Keep it aligned with the current shipped UI.
 
-## Planned improvements
+## Shipped recently
 
-- [x] Add parser fixture tests for Gemini, Codex, and Claude session activity.
-- [x] Split the detail view into smaller components.
-- [x] Render richer diffs for file edits and writes.
-- [ ] Add transcript search inside a conversation.
-- [ ] Virtualize the detail panel for very large sessions.
-- [ ] Improve activity attribution to assistant turns with stronger ids when
-  logs expose them.
-- [ ] Add collapsible sub-groups inside activity panels.
-- [ ] Add better empty-state messaging for activity panels.
-- [ ] Persist conversation detail UI preferences in local storage.
-- [ ] Add export options for conversation and activity data.
-- [ ] Add clickable file-path actions that either open the default IDE or show
-  a file viewer modal.
+- [x] Parser fixture tests for Gemini, Codex, and Claude session activity
+- [x] Split detail view into smaller components
+- [x] Richer diff rendering for file edits and writes
+- [x] Transcript search inside a conversation
+- [x] Virtualized detail panel for large sessions
+- [x] Persist conversation detail UI preferences in local storage
+- [x] Export conversation data as JSON, Markdown, and activity summaries
+- [x] Clickable file-path actions with file preview and editor integration
+- [x] First-run onboarding with suggested watch-folder sources and empty-state CTA
+
+## Next priorities
+
+- [ ] Add a simple setup script and `.env.example` for faster local install
+- [ ] Show backend/index health in the UI: watched folders, indexed files, last refresh
+- [ ] Improve empty states for conversation list, activity panels, and file panels
+- [ ] Add keyboard shortcuts for search, prompt navigation, and transcript focus mode
+- [ ] Tighten activity attribution to assistant turns when logs expose stable ids
+- [ ] Add collapsible sub-groups inside activity panels
+- [ ] Add lightweight screenshots/GIFs to the README for the main flows
+- [ ] Package the app with an easier single-command local startup story
 
 ## Current sequence
 
-The implementation order is:
-
-1. Add parser fixture tests.
-2. Split the detail view into smaller components.
-3. Render richer diffs for file edits and writes.
-4. Add transcript search inside a conversation.
-5. Pause for verification.
-6. Continue with the next item after review.
+1. Improve onboarding and empty-state UX.
+2. Reduce setup friction with scripts and config templates.
+3. Add diagnostics so users understand watcher/index state.
+4. Improve power-user navigation with keyboard shortcuts.
+5. Tighten activity grouping and attribution quality.

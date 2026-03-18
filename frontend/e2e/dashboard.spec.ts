@@ -231,7 +231,10 @@ const installMocks = async (page: Page) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify([]),
+        body: JSON.stringify({
+          folders: [],
+          recommendations: [],
+        }),
       });
       return;
     }
@@ -275,10 +278,10 @@ test('archives a conversation through the confirmation modal', async ({ page }) 
   await expect(page.getByRole('dialog')).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Archive conversation' }).click();
-  await page.getByRole('button', { name: 'Archive' }).click();
+  await page.getByRole('button', { name: 'Archive', exact: true }).click();
 
   await expect(page.getByRole('status')).toHaveText('Conversation archived.');
-  await expect(page.getByText('Archived')).toBeVisible();
+  await expect(page.getByText('Archived', { exact: true })).toBeVisible();
 });
 
 test('deletes a conversation and selects the next available one', async ({ page }) => {
@@ -289,7 +292,7 @@ test('deletes a conversation and selects the next available one', async ({ page 
 
   await page.getByRole('button', { name: 'Delete conversation' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
-  await page.getByRole('button', { name: 'Delete' }).click();
+  await page.getByRole('button', { name: 'Delete', exact: true }).click();
 
   await expect(page.getByRole('status')).toHaveText('Conversation deleted.');
   await expect(page.locator('.detail-header h2')).toHaveText('Codex refactor session');
@@ -312,7 +315,7 @@ test('copies message text and supports transcript keyboard shortcuts', async ({ 
 
   await searchInput.fill('retry');
   await expect(page.locator('.prompt-navigation-status').first()).toHaveText('1 / 2');
-  await expect(page.locator('mark.message-search-highlight')).toHaveCount(2);
+  await expect(page.locator('mark.message-search-highlight')).toHaveCount(3);
 
   await page.keyboard.press('Alt+ArrowDown');
   await expect(page.locator('.prompt-navigation-status').first()).toHaveText('2 / 2');

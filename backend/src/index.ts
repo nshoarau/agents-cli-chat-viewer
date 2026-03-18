@@ -9,6 +9,7 @@ import { WatcherService } from './services/watcherService.js';
 import { broadcastLogUpdate } from './routes/events.js';
 import { initializeConversationIndex } from './services/conversationRuntime.js';
 import { initializeWatchFoldersConfig } from './services/watchFoldersRuntime.js';
+import { getRuntimePaths } from './config/runtimePaths.js';
 
 dotenv.config();
 
@@ -16,12 +17,13 @@ const WATCHER_VERBOSE_LOGS = process.env.WATCHER_VERBOSE_LOGS === 'true';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const backendRoot = path.resolve(__dirname, '..');
+const runtimePaths = getRuntimePaths(backendRoot);
 
 const app = express();
 const port = process.env.PORT || 3000;
-const logsDir = process.env.LOGS_DIR || path.join(__dirname, '../logs');
-const watchFoldersConfigPath =
-  process.env.WATCH_FOLDERS_CONFIG || path.join(__dirname, '../config/watch-folders.json');
+const logsDir = runtimePaths.logsDir;
+const watchFoldersConfigPath = runtimePaths.watchFoldersConfigPath;
 
 // Ensure logs directory exists
 if (!fs.existsSync(logsDir)) {
@@ -29,13 +31,26 @@ if (!fs.existsSync(logsDir)) {
 }
 
 await initializeWatchFoldersConfig(logsDir, watchFoldersConfigPath);
-const conversationIndex = await initializeConversationIndex(logsDir);
+const conversationIndex = await initializeConversationIndex(logsDir, runtimePaths.conversationIndexCachePath);
 
 app.use(cors());
 app.use(express.json());
 
 // API Routes
 app.use('/api', apiRouter);
+
+if (fs.existsSync(runtimePaths.frontendDistDir)) {
+  app.use(express.static(runtimePaths.frontendDistDir));
+
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api')) {
+      next();
+      return;
+    }
+
+    res.sendFile(path.join(runtimePaths.frontendDistDir, 'index.html'));
+  });
+}
 
 // Initialize and start log watcher
 const watcher = new WatcherService(logsDir);
@@ -55,7 +70,13 @@ watcher.start();
 app.listen(port, () => {
   console.log(`Server is running at http://localhost:${port}`);
   console.log(`Watching logs in: ${logsDir}`);
+  console.log(`Watch-folder config: ${watchFoldersConfigPath}`);
   console.log('Conversation index stats:', conversationIndex.getStats());
+  if (fs.existsSync(runtimePaths.frontendDistDir)) {
+    console.log(`Serving frontend from: ${runtimePaths.frontendDistDir}`);
+  } else {
+    console.log('Frontend build not found. Run `npm run build --prefix frontend` for production assets.');
+  }
   if (!WATCHER_VERBOSE_LOGS) {
     console.log('Watcher event logging is compact. Set WATCHER_VERBOSE_LOGS=true for per-file logs.');
   }

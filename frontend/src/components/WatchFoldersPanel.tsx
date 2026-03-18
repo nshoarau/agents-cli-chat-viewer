@@ -1,27 +1,42 @@
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../services/apiClient';
-import type { WatchFolderEntry } from '../types';
+import type { WatchFolderRecommendation, WatchFoldersResponse } from '../types';
 
 interface WatchFoldersPanelProps {
   isOpen: boolean;
   onClose: () => void;
+  onShowToast?: (message: string, tone?: 'success' | 'error' | 'info') => void;
+  shouldHighlightRecommendations?: boolean;
 }
 
-export const WatchFoldersPanel: React.FC<WatchFoldersPanelProps> = ({ isOpen, onClose }) => {
+const getErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : 'Something went wrong while updating watched folders.';
+
+export const WatchFoldersPanel: React.FC<WatchFoldersPanelProps> = ({
+  isOpen,
+  onClose,
+  onShowToast,
+  shouldHighlightRecommendations = false,
+}) => {
   const queryClient = useQueryClient();
   const [folderPath, setFolderPath] = useState('');
   const [label, setLabel] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeRecommendationPath, setActiveRecommendationPath] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isCustomPathOpen, setIsCustomPathOpen] = useState(shouldHighlightRecommendations === false);
 
-  const { data: watchFolders = [], isPending, error } = useQuery({
+  const { data, isPending, error } = useQuery({
     queryKey: ['watch-folders'],
     queryFn: async () => {
-      const response = await apiClient.get<WatchFolderEntry[]>('/config/watch-folders');
+      const response = await apiClient.get<WatchFoldersResponse>('/config/watch-folders');
       return response.data;
     },
     enabled: isOpen,
   });
+  const watchFolders = data?.folders ?? [];
+  const recommendations = data?.recommendations ?? [];
 
   if (!isOpen) {
     return null;
@@ -40,6 +55,7 @@ export const WatchFoldersPanel: React.FC<WatchFoldersPanelProps> = ({ isOpen, on
     }
 
     setIsSubmitting(true);
+    setErrorMessage(null);
     try {
       await apiClient.post('/config/watch-folders', {
         folderPath: folderPath.trim(),
@@ -48,14 +64,46 @@ export const WatchFoldersPanel: React.FC<WatchFoldersPanelProps> = ({ isOpen, on
       setFolderPath('');
       setLabel('');
       await refreshData();
+      onShowToast?.('Watched folder added.');
+    } catch (error) {
+      const message = getErrorMessage(error);
+      setErrorMessage(message);
+      onShowToast?.(message, 'error');
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const enableRecommendation = async (recommendation: WatchFolderRecommendation) => {
+    setActiveRecommendationPath(recommendation.sourcePath);
+    setErrorMessage(null);
+    try {
+      await apiClient.post('/config/watch-folders', {
+        folderPath: recommendation.sourcePath,
+        label: recommendation.label,
+      });
+      await refreshData();
+      onShowToast?.(`${recommendation.label} enabled.`);
+    } catch (error) {
+      const message = getErrorMessage(error);
+      setErrorMessage(message);
+      onShowToast?.(message, 'error');
+    } finally {
+      setActiveRecommendationPath(null);
+    }
+  };
+
   const removeFolder = async (id: string) => {
-    await apiClient.delete(`/config/watch-folders/${id}`);
-    await refreshData();
+    setErrorMessage(null);
+    try {
+      await apiClient.delete(`/config/watch-folders/${id}`);
+      await refreshData();
+      onShowToast?.('Watched folder removed.', 'info');
+    } catch (error) {
+      const message = getErrorMessage(error);
+      setErrorMessage(message);
+      onShowToast?.(message, 'error');
+    }
   };
 
   return (
@@ -71,42 +119,117 @@ export const WatchFoldersPanel: React.FC<WatchFoldersPanelProps> = ({ isOpen, on
           </button>
         </div>
 
-        <div className="watch-folders-form">
-          <input
-            type="text"
-            placeholder="Absolute path"
-            value={folderPath}
-            onChange={(event) => setFolderPath(event.target.value)}
-          />
-          <input
-            type="text"
-            placeholder="Optional label"
-            value={label}
-            onChange={(event) => setLabel(event.target.value)}
-          />
-          <button className="btn-add-folder" onClick={addFolder} disabled={isSubmitting}>
-            Add Folder
+        <div className={`watch-folders-onboarding ${shouldHighlightRecommendations ? 'is-highlighted' : ''}`}>
+          <div className="watch-folders-onboarding-copy">
+            <div className="watch-folders-kicker">Onboarding</div>
+            <h3>Connect conversation sources</h3>
+            <p>
+              Enable detected folders in one click, or add a custom absolute path if your logs live elsewhere.
+            </p>
+          </div>
+        </div>
+
+        {recommendations.length > 0 ? (
+          <div className="watch-folders-section watch-folders-section-card">
+            <div className="watch-folders-section-header">
+              <h3>Suggested Sources</h3>
+              <span>{recommendations.length} available</span>
+            </div>
+            <div className="watch-folders-list watch-folders-suggested-list">
+              {recommendations.map((folder) => (
+                <div key={folder.sourcePath} className="watch-folder-item watch-folder-item-recommended">
+                  <div className="watch-folder-meta">
+                    <div className="watch-folder-label-row">
+                      <strong>{folder.label}</strong>
+                      <span className="watch-folder-kind kind-default">suggested</span>
+                    </div>
+                    <div className="watch-folder-path">{folder.sourcePath}</div>
+                  </div>
+                  <button
+                    className="btn-add-folder"
+                    onClick={() => enableRecommendation(folder)}
+                    disabled={activeRecommendationPath === folder.sourcePath}
+                  >
+                    {activeRecommendationPath === folder.sourcePath ? 'Enabling...' : 'Enable'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="watch-folders-empty watch-folders-section-card">
+            No default agent folders were detected automatically. Add a custom path below.
+          </div>
+        )}
+
+        <div className="watch-folders-section watch-folders-section-card">
+          <button
+            type="button"
+            className={`watch-folders-section-toggle ${isCustomPathOpen ? 'is-open' : ''}`}
+            onClick={() => setIsCustomPathOpen((current) => !current)}
+            aria-expanded={isCustomPathOpen}
+          >
+            <span className="watch-folders-section-header">
+              <h3>Custom Path</h3>
+              <span>Manual</span>
+            </span>
+            <span className="watch-folders-section-chevron" aria-hidden="true">▾</span>
           </button>
+
+          {isCustomPathOpen ? (
+            <div className="watch-folders-form">
+              <input
+                type="text"
+                placeholder="Absolute path"
+                value={folderPath}
+                onChange={(event) => setFolderPath(event.target.value)}
+              />
+              <input
+                type="text"
+                placeholder="Optional label"
+                value={label}
+                onChange={(event) => setLabel(event.target.value)}
+              />
+              <button className="btn-add-folder" onClick={addFolder} disabled={isSubmitting}>
+                Add Folder
+              </button>
+            </div>
+          ) : (
+            <div className="watch-folders-section-summary">
+              Add a file or directory manually if your agent logs are outside the suggested locations.
+            </div>
+          )}
         </div>
 
         {isPending ? <div className="watch-folders-empty">Loading watch folders...</div> : null}
         {error ? <div className="watch-folders-error">Failed to load watch folders.</div> : null}
+        {errorMessage ? <div className="watch-folders-error">{errorMessage}</div> : null}
 
-        <div className="watch-folders-list">
-          {watchFolders.map((folder) => (
-            <div key={folder.id} className="watch-folder-item">
-              <div className="watch-folder-meta">
-                <div className="watch-folder-label-row">
-                  <strong>{folder.label}</strong>
-                  <span className={`watch-folder-kind kind-${folder.kind}`}>{folder.kind}</span>
+        <div className="watch-folders-section watch-folders-section-card">
+          <div className="watch-folders-section-header">
+            <h3>Enabled Sources</h3>
+            <span>{watchFolders.length}</span>
+          </div>
+          {watchFolders.length === 0 ? (
+            <div className="watch-folders-empty">No watched folders are enabled yet.</div>
+          ) : (
+            <div className="watch-folders-list watch-folders-enabled-list">
+              {watchFolders.map((folder) => (
+                <div key={folder.id} className="watch-folder-item">
+                  <div className="watch-folder-meta">
+                    <div className="watch-folder-label-row">
+                      <strong>{folder.label}</strong>
+                      <span className={`watch-folder-kind kind-${folder.kind}`}>{folder.kind}</span>
+                    </div>
+                    <div className="watch-folder-path">{folder.sourcePath}</div>
+                  </div>
+                  <button className="btn-remove-folder" onClick={() => removeFolder(folder.id)}>
+                    Remove
+                  </button>
                 </div>
-                <div className="watch-folder-path">{folder.sourcePath}</div>
-              </div>
-              <button className="btn-remove-folder" onClick={() => removeFolder(folder.id)}>
-                Remove
-              </button>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       </div>
     </div>

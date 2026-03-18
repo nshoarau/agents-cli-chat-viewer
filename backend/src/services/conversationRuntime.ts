@@ -1,13 +1,13 @@
-import path from 'path';
 import { ConversationIndexCacheService } from './conversationIndexCacheService.js';
 import { ConversationIndexService } from './conversationIndexService.js';
 
 let conversationIndex: ConversationIndexService | null = null;
 
-export const initializeConversationIndex = async (logsDir: string): Promise<ConversationIndexService> => {
-  const cacheService = new ConversationIndexCacheService(
-    path.join(logsDir, '../config/conversation-index-cache.json')
-  );
+export const initializeConversationIndex = async (
+  logsDir: string,
+  cachePath: string
+): Promise<ConversationIndexService> => {
+  const cacheService = new ConversationIndexCacheService(cachePath);
   const index = new ConversationIndexService(logsDir, cacheService);
   await index.initialize();
   conversationIndex = index;

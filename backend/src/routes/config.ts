@@ -4,9 +4,9 @@ import { getWatchFoldersConfig } from '../services/watchFoldersRuntime.js';
 
 export const configRouter = Router();
 
-configRouter.get('/watch-folders', (req, res) => {
+configRouter.get('/watch-folders', async (req, res) => {
   try {
-    res.json(getWatchFoldersConfig().listFolders());
+    res.json(await getWatchFoldersConfig().getView());
   } catch (error) {
     console.error('Failed to list watch folders:', error);
     res.status(500).json({ error: 'Failed to list watch folders' });

@@ -7,8 +7,8 @@ export const useLogUpdates = () => {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    const baseURL = apiClient.defaults.baseURL || 'http://localhost:3000/api';
-    const sseURL = `${baseURL}/events`;
+    const baseURL = apiClient.defaults.baseURL || '/api';
+    const sseURL = new URL(`${baseURL}/events`, window.location.origin).toString();
     const eventSource = new EventSource(sseURL);
 
     eventSource.onmessage = (event) => {

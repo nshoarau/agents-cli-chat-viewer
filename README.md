@@ -2,6 +2,22 @@
 
 A local dashboard for browsing CLI agent conversations from Codex, Claude, and Gemini.
 
+![agents-cli-chat-viewer dashboard](screenshots/Dashboard.png)
+
+## Screenshots
+
+### Dashboard
+
+![Dashboard](screenshots/Dashboard.png)
+
+### Conversations
+
+![Conversations](screenshots/Conversations.png)
+
+### Activity Viewer
+
+![Activity Viewer](screenshots/Activity%20viewer.png)
+
 ## For Users
 
 ### 1. Install
@@ -112,6 +128,7 @@ npm run test:e2e --prefix frontend
 ## Current UI Highlights
 
 - Sidebar search plus agent filters for `all`, `claude`, `codex`, and `gemini`
+- Recent activity landing dashboard with summary cards, a 7-day cadence chart, and a latest-session timeline
 - Grouped conversation list by agent and project
 - Transcript focus mode and full-screen transcript mode
 - In-conversation search with next/previous match navigation

@@ -65,7 +65,6 @@ describe('conversationDetailUtils', () => {
       sessionActivityVisibility: { 'conv-1': false },
       agentActivityVisibility: { 'conv-1:2': true },
       filesPanelVisibility: { 'conv-1': true },
-      searchQuery: { 'conv-1': 'retry' },
       promptNavigationIndex: { 'conv-1': 1 },
       searchNavigationIndex: { 'conv-1': 2 },
       editorSelection: 'cursor' as const,
@@ -73,11 +72,41 @@ describe('conversationDetailUtils', () => {
       jetbrainsProjectName: 'UnlinkIt',
       headerCollapsed: true,
       sidebarCollapsed: true,
+      sidebarMode: 'hidden' as const,
     };
 
     persistConversationDetailPreferences(preferences);
 
-    expect(loadConversationDetailPreferences()).toEqual(preferences);
+    expect(loadConversationDetailPreferences()).toEqual({
+      ...preferences,
+    });
+  });
+
+  it('does not restore persisted transcript search input', () => {
+    window.localStorage.setItem(
+      CONVERSATION_DETAIL_PREFERENCES_KEY,
+      JSON.stringify({
+        ...getDefaultConversationDetailPreferences(),
+        searchQuery: { 'conv-1': 'retry' },
+      })
+    );
+
+    expect(loadConversationDetailPreferences()).toEqual(getDefaultConversationDetailPreferences());
+  });
+
+  it('maps legacy sidebarCollapsed preferences to hidden sidebar mode', () => {
+    window.localStorage.setItem(
+      CONVERSATION_DETAIL_PREFERENCES_KEY,
+      JSON.stringify({
+        sidebarCollapsed: true,
+      })
+    );
+
+    expect(loadConversationDetailPreferences()).toEqual({
+      ...getDefaultConversationDetailPreferences(),
+      sidebarCollapsed: true,
+      sidebarMode: 'hidden',
+    });
   });
 
   it('builds markdown transcript export content', () => {

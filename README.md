@@ -2,14 +2,100 @@
 
 A local dashboard for browsing CLI agent conversations from Codex, Claude, and Gemini.
 
-## What It Does
+## For Users
 
-- Watches local agent log folders and indexes supported conversation files.
-- Shows a searchable conversation list with agent and archive filters.
-- Renders long transcripts in a virtualized detail view for better performance.
-- Adds transcript search, prompt-to-prompt navigation, session activity panels, and file lists.
-- Supports file preview, raw file access, export actions, and editor links for referenced files.
-- Updates the UI live through server-sent events when watched logs change.
+### 1. Install
+
+```bash
+npm install
+```
+
+### 2. Start the app
+
+```bash
+npm start
+```
+
+This production command:
+
+- builds the frontend and backend
+- starts a single Express server
+- serves the UI and API from the same port
+- uses user-local config and data directories instead of writing runtime state into the repo
+
+Default URL:
+
+- App: `http://localhost:3000`
+
+### 3. First run in the UI
+
+1. Open `Watched Folders`
+2. Enable any suggested Claude, Codex, or Gemini source with one click
+3. Or expand `Custom Path` and add an absolute folder/file path manually
+4. The app will rebuild the index and show matching conversations
+
+### Runtime directories
+
+By default, runtime state is stored outside the repo:
+
+- Config: `~/.config/agents-cli-chat-viewer`
+- Data: `~/.local/share/agents-cli-chat-viewer`
+- Logs mirror/index input: `~/.local/share/agents-cli-chat-viewer/logs`
+
+You can override these with environment variables in `backend/.env`:
+
+- `PORT`
+- `LOGS_DIR`
+- `WATCH_FOLDERS_CONFIG`
+- `CONVERSATION_INDEX_CACHE`
+- `AGENTS_CLI_CHAT_VIEWER_CONFIG_DIR`
+- `AGENTS_CLI_CHAT_VIEWER_DATA_DIR`
+- `WATCHER_VERBOSE_LOGS`
+
+## For Contributors
+
+### Bootstrap
+
+```bash
+npm run setup
+```
+
+This installs all dependencies, creates `backend/.env` if needed, and prepares runtime directories.
+
+### Development
+
+```bash
+npm run dev
+```
+
+That runs backend and frontend dev servers together:
+
+- Frontend dev UI: `http://localhost:5173`
+- Backend API: `http://localhost:3000`
+
+If you only want the dev servers after setup:
+
+```bash
+npm run dev:serve
+```
+
+### Verification
+
+```bash
+npm test
+npm run lint
+npm run build --prefix frontend
+npm run test:e2e --prefix frontend
+```
+
+## What The App Does
+
+- Watches local agent log folders and indexes supported conversation files
+- Shows a searchable conversation list with agent and archive filters
+- Renders long transcripts in a virtualized detail view
+- Adds transcript search, prompt navigation, session activity panels, and file lists
+- Supports file preview, raw file access, export actions, and editor links for referenced files
+- Updates the UI live through server-sent events when watched logs change
 
 ## Current UI Highlights
 
@@ -26,84 +112,22 @@ A local dashboard for browsing CLI agent conversations from Codex, Claude, and G
 ## Project Structure
 
 ```text
-backend/   Express API, log watcher, indexing, parsing
-frontend/  React + Vite dashboard
+backend/   Express API, watcher, parsing, indexing, production server
+frontend/  React + Vite UI
 docs/      Product notes and roadmap
 specs/     Feature specs and implementation notes
+scripts/   Local setup helpers
 ```
-
-## Quick Start
-
-### 1. Install dependencies
-
-```bash
-npm install
-npm install --prefix backend
-npm install --prefix frontend
-```
-
-### 2. Start the app
-
-Run both servers in separate terminals:
-
-```bash
-npm run dev --prefix backend
-npm run dev --prefix frontend
-```
-
-Or from the repo root:
-
-```bash
-npm run dev
-```
-
-Frontend: `http://localhost:5173`
-
-Backend: `http://localhost:3000`
-
-### 3. Add logs
-
-The backend watches `backend/logs` by default.
-
-You can also add folders from the UI:
-
-1. Open `Watched Folders`
-2. Enable any suggested Claude, Codex, or Gemini source with one click
-3. Or add an absolute custom path to a file or directory containing supported logs
-4. The backend links that source into its watched logs area and rebuilds the index
-
-The backend also auto-discovers common default locations when they exist:
-
-- `~/.claude/projects`
-- `~/.codex/sessions`
-- `~/.gemini/tmp`
 
 ## Supported Sources
 
 - Claude project/session logs
 - Codex session logs
-- Gemini chat/session exports already supported by the parser fixtures
-
-## Useful Commands
-
-```bash
-npm run dev
-npm test
-npm run lint
-npm run test:e2e
-```
-
-## Configuration Notes
-
-- `PORT` defaults to `3000`
-- `LOGS_DIR` defaults to `backend/logs`
-- `WATCH_FOLDERS_CONFIG` defaults to `backend/config/watch-folders.json`
-
-These can be set through `backend/.env` if needed.
+- Gemini chat/session exports supported by the parser fixtures
 
 ## Maintenance Note
 
-This README should track user-visible behavior. When the UI changes materially, update:
+When the product changes materially, update:
 
-- `README.md` for feature and setup changes
+- `README.md` for setup and user-facing behavior
 - `docs/improvement-roadmap.md` for shipped work and next priorities

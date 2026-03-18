@@ -38,3 +38,6 @@ Thumbs.db
 
 # Runtime caches
 backend/config/conversation-index-cache.json
+backend/config/watch-folders.json
+backend/logs/
+backend/.env

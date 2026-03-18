@@ -12,7 +12,7 @@ export default defineConfig({
     trace: 'on-first-retry',
   },
   webServer: {
-    command: 'npm run dev -- --host 127.0.0.1 --port 4317',
+    command: 'npm --prefix frontend run dev -- --host 127.0.0.1 --port 4317',
     port: 4317,
     reuseExistingServer: !process.env.CI,
     timeout: 30_000,

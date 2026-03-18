@@ -252,7 +252,7 @@ export const Dashboard: React.FC = () => {
 
     return (
       <ConversationDetail
-        conversation={conversation}
+        conversation={conversation ?? undefined}
         isLoading={false}
         onShowToast={showToast}
         onConversationDeleted={handleConversationDeleted}

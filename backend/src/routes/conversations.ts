@@ -3,6 +3,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getConversationIndex } from '../services/conversationRuntime.js';
+import { getRuntimePaths } from '../config/runtimePaths.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -280,7 +281,7 @@ const isLikelyBinaryBuffer = (buffer: Buffer): boolean => {
   return false;
 };
 
-const getLogsDir = () => process.env.LOGS_DIR || path.join(__dirname, '../../logs');
+const getLogsDir = () => getRuntimePaths(path.resolve(__dirname, '../..')).logsDir;
 
 // List all conversations
 conversationRouter.get('/', async (req, res) => {

@@ -4,8 +4,13 @@
   "description": "",
   "main": "eslint.config.js",
   "scripts": {
-    "dev": "concurrently \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
-    "servers": "npm run dev",
+    "setup": "bash ./scripts/setup.sh",
+    "build": "npm run build --prefix frontend && npm run build --prefix backend",
+    "dev:serve": "concurrently \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
+    "dev": "npm run setup && npm run dev:serve",
+    "start": "npm run build && npm run start --prefix backend",
+    "start:prod": "npm run start --prefix backend",
+    "servers": "npm run dev:serve",
     "test:e2e": "npm run test:e2e --prefix frontend",
     "test": "npm test --prefix backend -- --run --passWithNoTests && npm test --prefix frontend -- --run --passWithNoTests",
     "lint": "npm run lint --prefix backend && npm run lint --prefix frontend"

@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { getConversationIndex } from '../services/conversationRuntime.js';
 import { getRuntimePaths } from '../config/runtimePaths.js';
+import type { AgentType } from '../schemas/logSchemas.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -32,6 +33,14 @@ const normalizePathCandidate = (value: string): string =>
   stripPathSuffixes(value.trim().replace(/[),.:;!?]+$/, ''));
 const WSL_DISTRIBUTION_NAME = process.env.WSL_DISTRO_NAME;
 const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
+const SUPPORTED_AGENT_TYPES = new Set<AgentType>([
+  'claude',
+  'codex',
+  'gemini',
+  'copilot',
+  'cursor',
+  'opencode',
+]);
 
 type PreviewStatus = 'ready' | 'binary' | 'too_large' | 'encoding_error';
 
@@ -249,7 +258,8 @@ const resolveAuthorizedPreviewPath = (
     projectPath: conversation.projectPath,
     conversationFilePath: conversation.filePath,
   });
-  const matchedPath = requestedCandidates.find((candidate) => allowedPaths.has(candidate));
+  const authorizedCandidates = requestedCandidates.filter((candidate) => allowedPaths.has(candidate));
+  const matchedPath = authorizedCandidates[0];
 
   if (matchedPath) {
     return { ok: true, matchedPath };
@@ -286,12 +296,10 @@ const getLogsDir = () => getRuntimePaths(path.resolve(__dirname, '../..')).logsD
 // List all conversations
 conversationRouter.get('/', async (req, res) => {
   try {
-    const agentType =
-      req.query.agentType === 'claude' ||
-      req.query.agentType === 'codex' ||
-      req.query.agentType === 'gemini'
-        ? req.query.agentType
-        : undefined;
+    const requestedAgentType = String(req.query.agentType || '');
+    const agentType = SUPPORTED_AGENT_TYPES.has(requestedAgentType as AgentType)
+      ? (requestedAgentType as AgentType)
+      : undefined;
     const offset = Number.parseInt(String(req.query.offset || '0'), 10);
     const limit = Number.parseInt(String(req.query.limit || '200'), 10);
 
@@ -339,16 +347,33 @@ conversationRouter.get('/:id/files/content', async (req, res) => {
       return res.status(authorizedPath.statusCode).json({ error: authorizedPath.error });
     }
 
-    const matchedPath = authorizedPath.matchedPath;
+    const authorizedCandidates = resolvePreviewCandidates(requestedPath, {
+      projectPath: conversation.projectPath,
+      conversationFilePath: conversation.filePath,
+    }).filter((candidate) => collectAllowedPreviewPaths(conversation).has(candidate));
+    let matchedPath = authorizedPath.matchedPath;
     let stats;
-    try {
-      stats = await fs.stat(matchedPath);
-    } catch (error) {
-      if (isMissingFileError(error)) {
+    let lastMissingFileError = false;
+    for (const candidate of authorizedCandidates) {
+      try {
+        stats = await fs.stat(candidate);
+        matchedPath = candidate;
+        break;
+      } catch (error) {
+        if (isMissingFileError(error)) {
+          lastMissingFileError = true;
+          continue;
+        }
+
+        throw error;
+      }
+    }
+    if (!stats) {
+      if (lastMissingFileError) {
         return res.status(404).json({ error: 'Referenced file no longer exists.' });
       }
 
-      throw error;
+      return res.status(404).json({ error: 'Referenced file no longer exists.' });
     }
     if (!stats.isFile()) {
       return res.status(400).json({ error: 'Only regular files can be previewed.' });

@@ -7,6 +7,10 @@ import type {
   AgentType,
   SessionActivity,
 } from '../schemas/logSchemas.js';
+import {
+  OpenCodeDbService,
+  parseOpenCodeSessionVirtualPath,
+} from './openCodeDbService.js';
 
 export interface ParsedConversationSummary {
   agentType: AgentType;
@@ -25,8 +29,33 @@ interface ParseCacheEntry<T> {
 export class ParserService {
   private static readonly conversationCache = new Map<string, ParseCacheEntry<Conversation>>();
   private static readonly summaryCache = new Map<string, ParseCacheEntry<ParsedConversationSummary>>();
+  private static readonly AGENT_TYPES: AgentType[] = [
+    'claude',
+    'codex',
+    'gemini',
+    'copilot',
+    'cursor',
+    'opencode',
+  ];
 
   public static async parseFile(filePath: string): Promise<Conversation> {
+    const openCodeVirtualPath = parseOpenCodeSessionVirtualPath(filePath);
+    if (openCodeVirtualPath) {
+      const stats = await fs.stat(openCodeVirtualPath.dbPath);
+      const cachedConversation = this.conversationCache.get(filePath);
+      if (cachedConversation?.mtimeMs === stats.mtimeMs) {
+        return cachedConversation.value;
+      }
+
+      const conversation = await OpenCodeDbService.parseConversation(filePath);
+      if (!conversation) {
+        throw new Error(`Failed to parse OpenCode session: ${filePath}`);
+      }
+
+      this.storeConversationCache(filePath, stats.mtimeMs, conversation);
+      return conversation;
+    }
+
     const { content, id, ext, timestamp, mtimeMs } = await this.readFileSnapshot(filePath);
     const cachedConversation = this.conversationCache.get(filePath);
 
@@ -35,13 +64,7 @@ export class ParserService {
     }
 
     // Path-based agent detection (folders like .codex or .claude)
-    let pathAgent: AgentType | undefined;
-    const absolutePath = path.resolve(filePath);
-    if (absolutePath.includes('.codex')) {
-      pathAgent = 'codex';
-    } else if (absolutePath.includes('.claude')) {
-      pathAgent = 'claude';
-    }
+    const pathAgent = this.detectPathAgent(filePath);
 
     if (ext === '.json' || ext === '.jsonl') {
       try {
@@ -88,6 +111,23 @@ export class ParserService {
   }
 
   public static async parseSummary(filePath: string): Promise<ParsedConversationSummary> {
+    const openCodeVirtualPath = parseOpenCodeSessionVirtualPath(filePath);
+    if (openCodeVirtualPath) {
+      const stats = await fs.stat(openCodeVirtualPath.dbPath);
+      const cachedSummary = this.summaryCache.get(filePath);
+      if (cachedSummary?.mtimeMs === stats.mtimeMs) {
+        return cachedSummary.value;
+      }
+
+      const conversation = await OpenCodeDbService.parseConversation(filePath);
+      if (!conversation) {
+        throw new Error(`Failed to parse OpenCode session: ${filePath}`);
+      }
+
+      this.storeConversationCache(filePath, stats.mtimeMs, conversation);
+      return this.toSummary(conversation);
+    }
+
     const { content, id, ext, timestamp, mtimeMs } = await this.readFileSnapshot(filePath);
     const cachedSummary = this.summaryCache.get(filePath);
     if (cachedSummary?.mtimeMs === mtimeMs) {
@@ -101,13 +141,7 @@ export class ParserService {
       return summary;
     }
 
-    let pathAgent: AgentType | undefined;
-    const absolutePath = path.resolve(filePath);
-    if (absolutePath.includes('.codex')) {
-      pathAgent = 'codex';
-    } else if (absolutePath.includes('.claude')) {
-      pathAgent = 'claude';
-    }
+    const pathAgent = this.detectPathAgent(filePath);
 
     let summary: ParsedConversationSummary;
 
@@ -135,12 +169,13 @@ export class ParserService {
         summary = this.parseJsonSummary(id, data, filePath, timestamp, pathAgent);
       }
     } else if (ext === '.md') {
+      const markdownDetails = this.parseMarkdownDetails(id, content, timestamp, pathAgent);
       summary = {
-        agentType: pathAgent || 'gemini',
-        timestamp,
-        title: id,
+        agentType: markdownDetails.agentType,
+        timestamp: markdownDetails.timestamp,
+        title: markdownDetails.title,
         filePath,
-        messageCount: 1,
+        messageCount: markdownDetails.messages.length,
       };
     } else {
       throw new Error(`Unsupported file format: ${ext}`);
@@ -340,54 +375,43 @@ export class ParserService {
   }
 
   private static parseJson(id: string, data: any, filePath: string, timestamp: string, pathAgent?: AgentType): Conversation {
-    // Basic heuristic to determine agent type from JSON structure
-    let agentType: AgentType = pathAgent || 'gemini';
+    const agentType = this.detectJsonAgentType(data, pathAgent, filePath);
     let messages: Message[] = [];
     let sessionActivity: SessionActivity | undefined;
 
-    const isClaude = data.agent === 'claude' || (typeof data.model === 'string' && data.model.includes('claude')) || (Array.isArray(data.messages) && data.messages.some((m: any) => m.role === 'assistant'));
-    const isCodex = data.agent === 'codex' || Array.isArray(data.turns);
-
-    if (!pathAgent) {
-      if (isClaude) agentType = 'claude';
-      else if (isCodex) agentType = 'codex';
-    }
-
     if (agentType === 'claude') {
       messages = (data.messages || []).map((m: any) => ({
-        sender: (m.role === 'assistant' || m.role === 'agent' || m.sender === 'agent') ? 'agent' : 'user',
+        sender: this.resolveSender(m),
         content: this.extractTextContent(m.content || m.text || ''),
-        timestamp: m.timestamp,
+        timestamp: this.getMessageTimestamp(m),
       }));
     } else if (agentType === 'codex') {
       const sourceMessages = data.turns || data.messages || [];
       messages = sourceMessages.map((t: any) => ({
-        sender: (t.role === 'agent' || t.role === 'assistant' || t.sender === 'agent') ? 'agent' : 'user',
+        sender: this.resolveSender(t),
         content: this.extractTextContent(t.content || t.text || ''),
-        timestamp: t.timestamp,
+        timestamp: this.getMessageTimestamp(t),
       }));
-    } else {
-      // Default to Gemini format
+    } else if (agentType === 'gemini') {
       messages = (data.conversations || data.messages || []).map((m: any) => ({
-        sender:
-          m.type === 'gemini' ||
-          m.role === 'model' ||
-          m.role === 'assistant' ||
-          m.role === 'agent' ||
-          m.sender === 'agent'
-            ? 'agent'
-            : 'user',
+        sender: this.resolveSender(m),
         content: this.extractTextContent(m.content || m.text || ''),
-        timestamp: m.timestamp,
+        timestamp: this.getMessageTimestamp(m),
       }));
       sessionActivity = this.extractGeminiSessionActivity(data);
+    } else if (agentType === 'copilot') {
+      messages = this.parseCopilotMessages(data);
+    } else if (agentType === 'cursor') {
+      messages = this.parseCursorMessages(data);
+    } else if (agentType === 'opencode') {
+      messages = this.parseOpenCodeMessages(data);
     }
 
     return {
       id,
       agentType,
-      timestamp: data.timestamp || timestamp,
-      title: data.title || id,
+      timestamp: this.getConversationTimestamp(data, timestamp),
+      title: this.getConversationTitle(id, data),
       status: 'active',
       filePath,
       messages,
@@ -402,24 +426,18 @@ export class ParserService {
     timestamp: string,
     pathAgent?: AgentType
   ): ParsedConversationSummary {
-    let agentType: AgentType = pathAgent || 'gemini';
-
-    const isClaude =
-      data.agent === 'claude' ||
-      (typeof data.model === 'string' && data.model.includes('claude')) ||
-      (Array.isArray(data.messages) && data.messages.some((message: any) => message.role === 'assistant'));
-    const isCodex = data.agent === 'codex' || Array.isArray(data.turns);
-
-    if (!pathAgent) {
-      if (isClaude) {
-        agentType = 'claude';
-      } else if (isCodex) {
-        agentType = 'codex';
-      }
-    }
+    const agentType = this.detectJsonAgentType(data, pathAgent, filePath);
 
     const messageCount = Array.isArray(data.turns)
       ? data.turns.length
+      : Array.isArray(data.requests)
+        ? data.requests.length * 2
+        : Array.isArray(data.exchanges)
+          ? data.exchanges.length * 2
+          : Array.isArray(data.entries)
+            ? data.entries.length
+            : Array.isArray(data.chat)
+              ? data.chat.length
       : Array.isArray(data.messages)
         ? data.messages.length
         : Array.isArray(data.conversations)
@@ -428,32 +446,290 @@ export class ParserService {
 
     return {
       agentType,
-      timestamp: data.timestamp || timestamp,
-      title: data.title || id,
+      timestamp: this.getConversationTimestamp(data, timestamp),
+      title: this.getConversationTitle(id, data),
       filePath,
       messageCount,
       workspacePath:
         (typeof data.cwd === 'string' && data.cwd) ||
+        (typeof data.workspace === 'string' && data.workspace) ||
         (typeof data.projectPath === 'string' && data.projectPath) ||
         undefined,
     };
   }
 
   private static parseMarkdown(id: string, content: string, filePath: string, timestamp: string, pathAgent?: AgentType): Conversation {
+    const details = this.parseMarkdownDetails(id, content, timestamp, pathAgent);
+
     return {
       id,
-      agentType: pathAgent || 'gemini',
-      timestamp,
-      title: id,
+      agentType: details.agentType,
+      timestamp: details.timestamp,
+      title: details.title,
       status: 'active',
       filePath,
-      messages: [
-        {
-          sender: 'agent',
-          content: content,
-          timestamp: timestamp,
-        },
-      ],
+      messages: details.messages,
+    };
+  }
+
+  private static detectPathAgent(filePath: string): AgentType | undefined {
+    const absolutePath = path.resolve(filePath).toLowerCase();
+
+    if (absolutePath.includes('.codex') || absolutePath.includes('codex-sessions')) {
+      return 'codex';
+    }
+    if (absolutePath.includes('.claude') || absolutePath.includes('claude-projects')) {
+      return 'claude';
+    }
+    if (absolutePath.includes('.gemini') || absolutePath.includes('gemini-chats')) {
+      return 'gemini';
+    }
+    if (
+      absolutePath.includes('github.copilot') ||
+      absolutePath.includes('copilot-chat') ||
+      absolutePath.includes('chatsessions')
+    ) {
+      return 'copilot';
+    }
+    if (absolutePath.includes('cursor')) {
+      return 'cursor';
+    }
+    if (absolutePath.includes('opencode')) {
+      return 'opencode';
+    }
+
+    return undefined;
+  }
+
+  private static detectJsonAgentType(data: any, pathAgent: AgentType | undefined, filePath: string): AgentType {
+    if (pathAgent) {
+      return pathAgent;
+    }
+
+    const explicitAgent = typeof data?.agent === 'string' ? data.agent.toLowerCase() : '';
+    if (this.AGENT_TYPES.includes(explicitAgent as AgentType)) {
+      return explicitAgent as AgentType;
+    }
+
+    if (
+      data?.providerId === 'github.copilot' ||
+      data?.source === 'copilot' ||
+      data?.source === 'github-copilot' ||
+      Array.isArray(data?.requests) ||
+      Array.isArray(data?.exchanges)
+    ) {
+      return 'copilot';
+    }
+
+    if (
+      data?.app === 'opencode' ||
+      data?.source === 'opencode' ||
+      (Array.isArray(data?.entries) && data?.workspace)
+    ) {
+      return 'opencode';
+    }
+
+    if (
+      data?.app === 'cursor' ||
+      data?.source === 'cursor' ||
+      Array.isArray(data?.chat) ||
+      Array.isArray(data?.conversation)
+    ) {
+      return 'cursor';
+    }
+
+    if (
+      typeof data?.model === 'string' && data.model.includes('claude') ||
+      (Array.isArray(data?.messages) && data.messages.some((message: any) => message.role === 'assistant'))
+    ) {
+      return 'claude';
+    }
+
+    if (data?.agent === 'codex' || Array.isArray(data?.turns)) {
+      return 'codex';
+    }
+
+    if (
+      Array.isArray(data?.conversations) ||
+      (Array.isArray(data?.messages) &&
+        data.messages.some((message: any) => message.type === 'gemini' || message.role === 'model'))
+    ) {
+      return 'gemini';
+    }
+
+    throw new Error(`Unsupported JSON format: ${filePath}`);
+  }
+
+  private static parseCopilotMessages(data: any): Message[] {
+    if (Array.isArray(data.requests)) {
+      const messages = data.requests.flatMap((entry: any, index: number) => {
+        const timestamp = this.getMessageTimestamp(entry);
+        return [
+          this.createMessage(this.resolveSender({ role: 'user' }), entry.prompt ?? entry.message ?? entry.input, timestamp, `user-${index}`),
+          this.createMessage(
+            this.resolveSender({ role: 'assistant' }),
+            entry.response?.message ?? entry.response ?? entry.answer ?? entry.result,
+            entry.responseTimestamp ?? timestamp,
+            `agent-${index}`
+          ),
+        ];
+      });
+      return messages.filter((message: Message | null): message is Message => Boolean(message));
+    }
+
+    if (Array.isArray(data.exchanges)) {
+      const messages = data.exchanges.flatMap((entry: any, index: number) => {
+        const timestamp = this.getMessageTimestamp(entry);
+        return [
+          this.createMessage('user', entry.request ?? entry.user ?? entry.prompt, timestamp, `user-${index}`),
+          this.createMessage('agent', entry.response ?? entry.assistant ?? entry.answer, entry.responseTimestamp ?? timestamp, `agent-${index}`),
+        ];
+      });
+      return messages.filter((message: Message | null): message is Message => Boolean(message));
+    }
+
+    return this.parseGenericMessageArray(data.messages);
+  }
+
+  private static parseCursorMessages(data: any): Message[] {
+    return this.parseGenericMessageArray(data.messages || data.chat || data.conversation);
+  }
+
+  private static parseOpenCodeMessages(data: any): Message[] {
+    return this.parseGenericMessageArray(data.messages || data.entries || data.conversation);
+  }
+
+  private static parseGenericMessageArray(source: unknown): Message[] {
+    if (!Array.isArray(source)) {
+      return [];
+    }
+
+    return source
+      .map((entry: any, index: number) =>
+        this.createMessage(
+          this.resolveSender(entry),
+          entry?.content ?? entry?.text ?? entry?.message ?? entry?.body,
+          this.getMessageTimestamp(entry),
+          typeof entry?.id === 'string' ? entry.id : `message-${index}`
+        )
+      )
+      .filter((message): message is Message => Boolean(message));
+  }
+
+  private static parseMarkdownDetails(
+    id: string,
+    content: string,
+    fallbackTimestamp: string,
+    pathAgent?: AgentType
+  ): {
+    agentType: AgentType;
+    timestamp: string;
+    title: string;
+    messages: Message[];
+  } {
+    const sectionPattern =
+      /^(?:#{1,6}\s+|\*\*)(User|You|Human|Assistant|Cursor|Copilot|OpenCode)(?:\*\*)?:?\s*$/im;
+    const blocks = content
+      .split(/\n(?=(?:(?:#{1,6}\s+|\*\*)(?:User|You|Human|Assistant|Cursor|Copilot|OpenCode)(?:\*\*)?:?\s*$))/im)
+      .map((block) => block.trim())
+      .filter(Boolean);
+
+    const titleMatch = content.match(/^#\s+(.+)$/m);
+    const title = titleMatch?.[1]?.trim() || id;
+
+    const structuredMessages = blocks
+      .map((block, index) => {
+        const headerMatch = block.match(sectionPattern);
+        if (!headerMatch) {
+          return null;
+        }
+
+        const sender = /user|you|human/i.test(headerMatch[1]) ? 'user' : 'agent';
+        const normalized = block.replace(sectionPattern, '').trim();
+        return this.createMessage(sender, normalized, fallbackTimestamp, `markdown-${index}`);
+      })
+      .filter((message): message is Message => Boolean(message));
+
+    const agentType =
+      pathAgent ||
+      (/copilot/i.test(content)
+        ? 'copilot'
+        : /opencode/i.test(content)
+          ? 'opencode'
+          : /cursor/i.test(content) || structuredMessages.length > 1
+            ? 'cursor'
+            : 'gemini');
+
+    return {
+      agentType,
+      timestamp: fallbackTimestamp,
+      title,
+      messages:
+        structuredMessages.length > 0
+          ? structuredMessages
+          : [
+              {
+                sender: 'agent',
+                content,
+                timestamp: fallbackTimestamp,
+              },
+            ],
+    };
+  }
+
+  private static getConversationTitle(id: string, data: any): string {
+    return data?.title || data?.name || data?.sessionTitle || data?.label || id;
+  }
+
+  private static getConversationTimestamp(data: any, fallbackTimestamp: string): string {
+    return (
+      data?.timestamp ||
+      data?.updatedAt ||
+      data?.createdAt ||
+      data?.lastUpdatedAt ||
+      fallbackTimestamp
+    );
+  }
+
+  private static getMessageTimestamp(message: any): string | undefined {
+    return (
+      message?.timestamp ||
+      message?.createdAt ||
+      message?.updatedAt ||
+      message?.time ||
+      message?.date
+    );
+  }
+
+  private static resolveSender(message: any): Message['sender'] {
+    const role = `${message?.role ?? message?.sender ?? message?.type ?? ''}`.toLowerCase();
+    return role === 'assistant' ||
+      role === 'agent' ||
+      role === 'model' ||
+      role === 'gemini' ||
+      role === 'copilot' ||
+      role === 'cursor' ||
+      role === 'opencode'
+      ? 'agent'
+      : 'user';
+  }
+
+  private static createMessage(
+    sender: Message['sender'],
+    rawContent: unknown,
+    timestamp?: string,
+    id?: string
+  ): Message | null {
+    const content = this.extractTextContent(rawContent).trim();
+    if (!content) {
+      return null;
+    }
+
+    return {
+      id,
+      sender,
+      content,
+      timestamp,
     };
   }
 

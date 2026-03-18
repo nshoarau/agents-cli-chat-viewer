@@ -2,13 +2,15 @@
 
 A local dashboard for browsing CLI agent conversations from Codex, Claude, and Gemini.
 
-![agents-cli-chat-viewer dashboard](screenshots/Dashboard.png)
-
 ## Screenshots
 
 ### Dashboard
 
 ![Dashboard](screenshots/Dashboard.png)
+
+### Dashboard Session View
+
+![Dashboard Session View](screenshots/Dashboard_sessions.png)
 
 ### Conversations
 

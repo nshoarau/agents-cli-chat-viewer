@@ -527,29 +527,38 @@ export class ParserService {
 
     for (const message of data.messages || []) {
       for (const toolCall of message.toolCalls || []) {
-        const command = this.getToolCommand(toolCall.args);
+        const parsedArgs = toolCall.args || {};
+        const command = this.getToolCommand(parsedArgs);
+        const resolvedFilePaths = this.resolveToolFilePaths(
+          toolCall.name,
+          parsedArgs,
+          command,
+          toolCall.resultDisplay,
+          toolCall.result
+        );
         if (command) {
           commands.push(command);
         }
 
-        this.extractFilePathsFromTool(toolCall.name, toolCall.args || {}, command).forEach((filePath) =>
-          filesTouched.add(filePath)
-        );
+        resolvedFilePaths.forEach((filePath) => filesTouched.add(filePath));
 
         toolCalls.push({
           id: toolCall.id,
           name: toolCall.name,
-          kind: this.getToolKind(toolCall.name, toolCall.args || {}),
+          kind: this.getToolKind(toolCall.name, parsedArgs),
           timestamp: toolCall.timestamp || message.timestamp,
           status: typeof toolCall.status === 'string' ? toolCall.status : undefined,
-          summary: this.describeToolCall(toolCall.name, toolCall.args || {}, command),
+          summary: this.describeToolCall(toolCall.name, parsedArgs, command),
           command,
-          filePath: this.getPrimaryFilePath(toolCall.name, toolCall.args || {}, command),
+          filePath: this.pickResolvedPrimaryFilePath(
+            this.getPrimaryFilePath(toolCall.name, parsedArgs, command),
+            resolvedFilePaths
+          ),
           outputPreview: this.trimPreview(
             this.extractToolOutputPreview(toolCall.resultDisplay, toolCall.result)
           ),
           diffPreview: this.trimPreview(
-            this.extractDiffPreview(toolCall.name, toolCall.args || {}, toolCall.resultDisplay)
+            this.extractDiffPreview(toolCall.name, parsedArgs, toolCall.resultDisplay)
           ),
         });
       }
@@ -765,6 +774,45 @@ export class ParserService {
     return [...filePaths];
   }
 
+  private static resolveToolFilePaths(
+    toolName: string,
+    args: Record<string, unknown>,
+    command: string | undefined,
+    resultDisplay?: unknown,
+    result?: unknown
+  ): string[] {
+    const filePaths = new Set(this.extractFilePathsFromTool(toolName, args, command));
+
+    [this.extractTextContent(resultDisplay), this.extractTextContent(result)]
+      .filter(Boolean)
+      .forEach((text) => {
+        this.extractPathsFromCommand(text).forEach((filePath) => filePaths.add(filePath));
+      });
+
+    return [...filePaths];
+  }
+
+  private static pickResolvedPrimaryFilePath(
+    primaryFilePath: string | undefined,
+    filePaths: string[]
+  ): string | undefined {
+    if (!primaryFilePath) {
+      return filePaths.find((filePath) => path.isAbsolute(filePath)) ?? filePaths[0];
+    }
+
+    if (path.isAbsolute(primaryFilePath)) {
+      return primaryFilePath;
+    }
+
+    const absoluteMatch = filePaths.find(
+      (filePath) =>
+        path.isAbsolute(filePath) &&
+        (filePath.endsWith(`/${primaryFilePath}`) || path.basename(filePath) === path.basename(primaryFilePath))
+    );
+
+    return absoluteMatch ?? primaryFilePath;
+  }
+
   private static extractPathsFromCommand(command: string): string[] {
     const filePaths = new Set<string>();
     const absolutePathMatches = command.match(/(?:\/[\w.@-]+)+/g) || [];
@@ -884,6 +932,10 @@ export class ParserService {
         record.output_text,
         record.resultDisplay,
         record.output,
+        record.fileDiff,
+        record.originalContent,
+        record.response,
+        record.functionResponse,
       ]
         .map((entry) => this.extractTextContent(entry))
         .filter(Boolean)

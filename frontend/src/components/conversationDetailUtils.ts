@@ -5,7 +5,6 @@ export interface ConversationDetailPreferences {
   sessionActivityVisibility: Record<string, boolean>;
   agentActivityVisibility: Record<string, boolean>;
   filesPanelVisibility: Record<string, boolean>;
-  searchQuery: Record<string, string>;
   promptNavigationIndex: Record<string, number>;
   searchNavigationIndex: Record<string, number>;
   editorSelection: EditorOptionId;
@@ -13,6 +12,7 @@ export interface ConversationDetailPreferences {
   jetbrainsProjectName: string;
   headerCollapsed: boolean;
   sidebarCollapsed: boolean;
+  sidebarMode: 'full' | 'reduced' | 'hidden';
 }
 
 export const CONVERSATION_DETAIL_PREFERENCES_KEY = 'conversation-detail-preferences-v1';
@@ -27,16 +27,6 @@ const normalizeBooleanRecord = (value: unknown): Record<string, boolean> => {
 
   return Object.fromEntries(
     Object.entries(value).filter((entry): entry is [string, boolean] => typeof entry[1] === 'boolean')
-  );
-};
-
-const normalizeStringRecord = (value: unknown): Record<string, string> => {
-  if (!isObjectRecord(value)) {
-    return {};
-  }
-
-  return Object.fromEntries(
-    Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
   );
 };
 
@@ -56,7 +46,6 @@ export const getDefaultConversationDetailPreferences = (): ConversationDetailPre
   sessionActivityVisibility: {},
   agentActivityVisibility: {},
   filesPanelVisibility: {},
-  searchQuery: {},
   promptNavigationIndex: {},
   searchNavigationIndex: {},
   editorSelection: 'default',
@@ -64,6 +53,7 @@ export const getDefaultConversationDetailPreferences = (): ConversationDetailPre
   jetbrainsProjectName: '',
   headerCollapsed: false,
   sidebarCollapsed: false,
+  sidebarMode: 'full',
 });
 
 export const loadConversationDetailPreferences = (): ConversationDetailPreferences => {
@@ -86,7 +76,6 @@ export const loadConversationDetailPreferences = (): ConversationDetailPreferenc
       sessionActivityVisibility: normalizeBooleanRecord(parsed.sessionActivityVisibility),
       agentActivityVisibility: normalizeBooleanRecord(parsed.agentActivityVisibility),
       filesPanelVisibility: normalizeBooleanRecord(parsed.filesPanelVisibility),
-      searchQuery: normalizeStringRecord(parsed.searchQuery),
       promptNavigationIndex: normalizeNumberRecord(parsed.promptNavigationIndex),
       searchNavigationIndex: normalizeNumberRecord(parsed.searchNavigationIndex),
       editorSelection:
@@ -109,6 +98,12 @@ export const loadConversationDetailPreferences = (): ConversationDetailPreferenc
       jetbrainsProjectName: typeof parsed.jetbrainsProjectName === 'string' ? parsed.jetbrainsProjectName : '',
       headerCollapsed: parsed.headerCollapsed === true,
       sidebarCollapsed: parsed.sidebarCollapsed === true,
+      sidebarMode:
+        parsed.sidebarMode === 'reduced' || parsed.sidebarMode === 'hidden' || parsed.sidebarMode === 'full'
+          ? parsed.sidebarMode
+          : parsed.sidebarCollapsed === true
+            ? 'hidden'
+            : 'full',
     };
   } catch {
     return getDefaultConversationDetailPreferences();

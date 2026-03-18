@@ -73,6 +73,12 @@ const defaultFolderCandidates = () => {
       targetName: 'gemini-chats',
       kind: 'default' as const,
     },
+    {
+      label: 'OpenCode Data',
+      sourcePath: path.join(homeDir, '.local/share/opencode'),
+      targetName: 'opencode-projects',
+      kind: 'default' as const,
+    },
   ];
 };
 

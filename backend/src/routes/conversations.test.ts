@@ -5,11 +5,12 @@ import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const getConversationMock = vi.fn();
+const listConversationsMock = vi.fn();
 
 vi.mock('../services/conversationRuntime.js', () => ({
   getConversationIndex: () => ({
     getConversation: getConversationMock,
-    listConversations: vi.fn(),
+    listConversations: listConversationsMock,
     updateStatus: vi.fn(),
     deleteConversation: vi.fn(),
     addFolder: vi.fn(),
@@ -97,6 +98,70 @@ describe('conversationRouter file preview route', () => {
         previewStatus: 'ready',
         rawUrl: `/api/conversations/conv-1/files/raw?path=${encodeURIComponent('src/app.ts')}`,
         mimeType: 'text/typescript',
+      });
+    });
+  });
+
+  it('accepts opencode as a list filter agent type', async () => {
+    listConversationsMock.mockReturnValue({
+      items: [],
+      total: 0,
+      nextOffset: null,
+    });
+
+    await withServer(async (baseUrl) => {
+      const response = await fetch(
+        `${baseUrl}/api/conversations?agentType=${encodeURIComponent('opencode')}`
+      );
+
+      expect(response.status).toBe(200);
+      expect(listConversationsMock).toHaveBeenCalledWith('opencode', 0, 200);
+    });
+  });
+
+  it('prefers an existing authorized project-relative candidate over a missing root-absolute variant', async () => {
+    const projectPath = path.join(tempDir, 'frontend', 'src');
+    const conversationLog = path.join(tempDir, 'logs', 'session.jsonl');
+    const filePath = path.join(projectPath, 'components', 'conversationFilesPanelUtils.test.ts');
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.mkdir(path.dirname(conversationLog), { recursive: true });
+    await fs.writeFile(filePath, 'export const fromExistingCandidate = true;\n');
+    await fs.writeFile(conversationLog, '{}\n');
+
+    getConversationMock.mockResolvedValue({
+      id: 'conv-1',
+      filePath: conversationLog,
+      projectPath,
+      messages: [
+        {
+          sender: 'user',
+          content: `Inspect ${filePath}.`,
+        },
+      ],
+      sessionActivity: {
+        commands: [],
+        filesTouched: ['/components/conversationFilesPanelUtils.test.ts'],
+        toolCalls: [
+          {
+            name: 'read_file',
+            kind: 'read',
+            filePath: '/components/conversationFilesPanelUtils.test.ts',
+          },
+        ],
+      },
+    });
+
+    await withServer(async (baseUrl) => {
+      const response = await fetch(
+        `${baseUrl}/api/conversations/conv-1/files/content?path=${encodeURIComponent('/components/conversationFilesPanelUtils.test.ts')}`
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject({
+        filePath,
+        editorPath: expectedEditorPath(filePath),
+        content: 'export const fromExistingCandidate = true;\n',
+        previewStatus: 'ready',
       });
     });
   });

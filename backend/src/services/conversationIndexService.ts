@@ -6,6 +6,12 @@ import {
   type CachedConversationEntry,
 } from './conversationIndexCacheService.js';
 import { ParserService, type ParsedConversationSummary } from './parserService.js';
+import {
+  createOpenCodeSessionVirtualPath,
+  isOpenCodeDatabasePath,
+  OpenCodeDbService,
+  parseOpenCodeSessionVirtualPath,
+} from './openCodeDbService.js';
 
 export interface ConversationSummary extends ParsedConversationSummary {
   id: string;
@@ -70,8 +76,15 @@ export const decodeConversationId = (id: string): string => {
   }
 };
 
-const isSupportedLogFile = (filePath: string): boolean =>
-  SUPPORTED_EXTENSIONS.has(path.extname(filePath).toLowerCase());
+const isSupportedLogFile = (filePath: string): boolean => {
+  const normalizedPath = path.resolve(filePath);
+
+  if (normalizedPath.includes(`${path.sep}storage${path.sep}message${path.sep}`)) {
+    return false;
+  }
+
+  return isOpenCodeDatabasePath(filePath) || SUPPORTED_EXTENSIONS.has(path.extname(filePath).toLowerCase());
+};
 
 const getProjectData = (
   relativePath: string,
@@ -107,6 +120,13 @@ const getProjectData = (
     return {
       project: 'codex',
       projectPath: 'codex',
+    };
+  }
+
+  if (watchRoot === 'opencode-projects') {
+    return {
+      project: 'opencode',
+      projectPath: 'opencode',
     };
   }
 
@@ -298,6 +318,10 @@ export class ConversationIndexService {
       return false;
     }
 
+    if (parseOpenCodeSessionVirtualPath(summary.filePath)) {
+      return false;
+    }
+
     await fs.unlink(summary.filePath);
     this.summaries.delete(id);
     this.statusStore.delete(id);
@@ -320,6 +344,18 @@ export class ConversationIndexService {
   public async handleFileEvent(event: 'add' | 'change' | 'unlink', filePath: string): Promise<ConversationLogEvent | null> {
     if (!isSupportedLogFile(filePath)) {
       return null;
+    }
+
+    if (isOpenCodeDatabasePath(filePath)) {
+      if (event === 'unlink') {
+        const removedIds = this.removeOpenCodeDatabaseSummaries(filePath);
+        await this.persistCache();
+        return removedIds.length > 0 ? { event, id: removedIds[0] } : null;
+      }
+
+      await this.upsertOpenCodeDatabase(filePath);
+      await this.persistCache();
+      return { event };
     }
 
     if (event === 'unlink') {
@@ -362,6 +398,11 @@ export class ConversationIndexService {
   }
 
   private async upsertFile(filePath: string): Promise<UpsertResult | null> {
+    if (isOpenCodeDatabasePath(filePath)) {
+      await this.upsertOpenCodeDatabase(filePath);
+      return null;
+    }
+
     try {
       const relativePath = path.relative(path.resolve(this.logsDir), path.resolve(filePath));
       const id = encodeConversationId(relativePath);
@@ -405,6 +446,89 @@ export class ConversationIndexService {
     } catch {
       return null;
     }
+  }
+
+  private removeOpenCodeDatabaseSummaries(filePath: string): string[] {
+    const resolvedDbPath = path.resolve(filePath);
+    const removedIds: string[] = [];
+
+    Array.from(this.summaries.entries()).forEach(([id, summary]) => {
+      const parsedPath = parseOpenCodeSessionVirtualPath(summary.filePath);
+      if (!parsedPath || path.resolve(parsedPath.dbPath) !== resolvedDbPath) {
+        return;
+      }
+
+      this.summaries.delete(id);
+      this.statusStore.delete(id);
+      this.persistedEntries.delete(summary.filePath);
+      ParserService.evict(summary.filePath);
+      removedIds.push(id);
+    });
+
+    this.persistedEntries.delete(filePath);
+    ParserService.evict(filePath);
+
+    return removedIds;
+  }
+
+  private async upsertOpenCodeDatabase(filePath: string): Promise<void> {
+    const resolvedDbPath = path.resolve(filePath);
+    const stats = await fs.stat(resolvedDbPath);
+    const sessions = await OpenCodeDbService.listSessions(resolvedDbPath);
+    const activeVirtualPaths = new Set<string>();
+
+    sessions.forEach((session) => {
+      const virtualPath = createOpenCodeSessionVirtualPath(resolvedDbPath, session.sessionId);
+      activeVirtualPaths.add(virtualPath);
+
+      const relativePath = path.relative(path.resolve(this.logsDir), virtualPath);
+      const id = encodeConversationId(relativePath);
+      const parsed: ParsedConversationSummary = {
+        agentType: 'opencode',
+        timestamp: session.timestamp,
+        title: session.title,
+        filePath: virtualPath,
+        messageCount: session.messageCount,
+        workspacePath: session.workspacePath,
+      };
+      const { project, projectPath } = getProjectData(
+        relativePath,
+        parsed.workspacePath,
+        parsed.agentType
+      );
+
+      const summary: ConversationSummary = {
+        ...parsed,
+        id,
+        status: this.statusStore.get(id) || 'active',
+        project,
+        projectPath,
+        relativePath,
+      };
+
+      this.summaries.set(id, summary);
+      this.persistedEntries.set(virtualPath, {
+        mtimeMs: stats.mtimeMs,
+        size: stats.size,
+        summary,
+      });
+    });
+
+    Array.from(this.summaries.entries()).forEach(([id, summary]) => {
+      const parsedPath = parseOpenCodeSessionVirtualPath(summary.filePath);
+      if (!parsedPath || path.resolve(parsedPath.dbPath) !== resolvedDbPath) {
+        return;
+      }
+
+      if (activeVirtualPaths.has(summary.filePath)) {
+        return;
+      }
+
+      this.summaries.delete(id);
+      this.statusStore.delete(id);
+      this.persistedEntries.delete(summary.filePath);
+      ParserService.evict(summary.filePath);
+    });
   }
 
   private async persistCache(): Promise<void> {

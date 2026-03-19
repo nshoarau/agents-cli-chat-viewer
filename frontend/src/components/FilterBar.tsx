@@ -1,8 +1,13 @@
 import React from 'react';
 import { useConversationStore } from '../store/useConversationStore';
 import { AgentIcon } from './AgentIcon';
+import type { AgentType } from '../types';
 
-export const FilterBar: React.FC = () => {
+interface FilterBarProps {
+  availableAgents: AgentType[];
+}
+
+export const FilterBar: React.FC<FilterBarProps> = ({ availableAgents }) => {
   const { showArchived, setShowArchived, selectedAgent, setSelectedAgent } = useConversationStore();
 
   return (
@@ -10,32 +15,27 @@ export const FilterBar: React.FC = () => {
       <div className="sidebar-filter-card">
         <div className="sidebar-filter-title">Load Conversations</div>
         <div className="agent-filter-grid">
-          <button
-            className={`agent-filter-btn ${selectedAgent === 'all' ? 'active' : ''}`}
-            onClick={() => setSelectedAgent('all')}
-          >
-            <AgentIcon agent="all" />
-          </button>
-          <button
-            className={`agent-filter-btn ${selectedAgent === 'claude' ? 'active' : ''}`}
-            onClick={() => setSelectedAgent('claude')}
-          >
-            <AgentIcon agent="claude" />
-          </button>
-          <button
-            className={`agent-filter-btn ${selectedAgent === 'codex' ? 'active' : ''}`}
-            onClick={() => setSelectedAgent('codex')}
-          >
-            <AgentIcon agent="codex" />
-          </button>
-          <button
-            className={`agent-filter-btn ${selectedAgent === 'gemini' ? 'active' : ''}`}
-            onClick={() => setSelectedAgent('gemini')}
-          >
-            <AgentIcon agent="gemini" />
-          </button>
+          {availableAgents.length > 1 ? (
+            <button
+              className={`agent-filter-btn ${selectedAgent === 'all' ? 'active' : ''}`}
+              onClick={() => setSelectedAgent('all')}
+            >
+              <AgentIcon agent="all" />
+            </button>
+          ) : null}
+          {availableAgents.map((agent) => (
+            <button
+              key={agent}
+              className={`agent-filter-btn ${selectedAgent === agent ? 'active' : ''}`}
+              onClick={() => setSelectedAgent(agent)}
+            >
+              <AgentIcon agent={agent} />
+            </button>
+          ))}
         </div>
-        {selectedAgent === 'none' ? (
+        {availableAgents.length === 0 ? (
+          <div className="sidebar-filter-hint">Connect a watched folder to load conversations.</div>
+        ) : selectedAgent === 'none' ? (
           <div className="sidebar-filter-hint">Select an agent to load conversations.</div>
         ) : null}
       </div>

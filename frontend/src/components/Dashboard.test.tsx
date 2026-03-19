@@ -106,6 +106,38 @@ describe('Dashboard startup launcher', () => {
     expect(useConversationStore.getState().selectedAgent).toBe('codex');
   });
 
+  it('limits filter buttons to detected agents', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      data: {
+        folders: [
+          {
+            id: 'codex-folder',
+            label: 'Codex Sessions',
+            sourcePath: '/home/test/.codex/sessions',
+            targetName: 'codex-sessions',
+            kind: 'default',
+          },
+          {
+            id: 'claude-folder',
+            label: 'Claude Sessions',
+            sourcePath: '/home/test/.claude/sessions',
+            targetName: 'claude-sessions',
+            kind: 'default',
+          },
+        ],
+        recommendations: [],
+      },
+    } as never);
+
+    renderDashboard();
+
+    expect(await screen.findByRole('button', { name: 'All Agents' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Claude' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Codex' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cursor' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Copilot' })).not.toBeInTheDocument();
+  });
+
   it('shows a recent activity dashboard when conversations are loaded but none is selected', async () => {
     useConversationStore.setState({
       searchQuery: '',

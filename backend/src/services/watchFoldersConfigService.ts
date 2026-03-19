@@ -28,6 +28,13 @@ interface WatchFoldersConfigFile {
   folders: WatchFolderEntry[];
 }
 
+interface DefaultFolderCandidate {
+  label: string;
+  sourcePath: string;
+  targetName: string;
+  kind: 'default';
+}
+
 const DEFAULT_CONFIG: WatchFoldersConfigFile = {
   version: 1,
   folders: [],
@@ -51,14 +58,18 @@ const pathExists = async (targetPath: string): Promise<boolean> => {
   }
 };
 
-const defaultFolderCandidates = () => {
-  const homeDir = os.homedir();
-
+const defaultFolderCandidates = (homeDir = os.homedir()): DefaultFolderCandidate[] => {
   return [
     {
       label: 'Claude Projects',
       sourcePath: path.join(homeDir, '.claude/projects'),
       targetName: 'claude-projects',
+      kind: 'default' as const,
+    },
+    {
+      label: 'Claude Sessions',
+      sourcePath: path.join(homeDir, '.claude/sessions'),
+      targetName: 'claude-sessions',
       kind: 'default' as const,
     },
     {
@@ -74,12 +85,28 @@ const defaultFolderCandidates = () => {
       kind: 'default' as const,
     },
     {
+      label: 'Gemini History',
+      sourcePath: path.join(homeDir, '.gemini/history'),
+      targetName: 'gemini-history',
+      kind: 'default' as const,
+    },
+    {
+      label: 'Gemini Antigravity',
+      sourcePath: path.join(homeDir, '.gemini/antigravity/conversations'),
+      targetName: 'gemini-antigravity',
+      kind: 'default' as const,
+    },
+    {
       label: 'OpenCode Data',
       sourcePath: path.join(homeDir, '.local/share/opencode'),
       targetName: 'opencode-projects',
       kind: 'default' as const,
     },
   ];
+};
+
+export const __testUtils = {
+  defaultFolderCandidates,
 };
 
 export class WatchFoldersConfigService {

@@ -1,6 +1,6 @@
 # agents-cli-chat-viewer
 
-A local dashboard for browsing CLI agent conversations from Codex, Claude, and Gemini.
+A local dashboard for browsing CLI agent conversations from Codex, Claude, Gemini, GitHub Copilot, Cursor, and OpenCode.
 
 ## Screenshots
 
@@ -60,7 +60,7 @@ If you want the onboarding wizard to auto-detect agent folders from the host, us
 ### 3. First run in the UI
 
 1. Open `Watched Folders`
-2. Enable any suggested Claude, Codex, or Gemini source with one click
+2. Enable any suggested Claude, Codex, Gemini, or OpenCode source with one click
 3. Or expand `Custom Path` and add an absolute folder/file path manually
 4. The app will rebuild the index and show matching conversations
 
@@ -101,7 +101,7 @@ npm run dev
 That runs backend and frontend dev servers together:
 
 - Frontend dev UI: `http://localhost:5173`
-- Backend API: `http://localhost:3000`
+- Backend API: `http://localhost:3333`
 
 If you only want the dev servers after setup:
 
@@ -129,7 +129,7 @@ npm run test:e2e --prefix frontend
 
 ## Current UI Highlights
 
-- Sidebar search plus agent filters for `all`, `claude`, `codex`, and `gemini`
+- Sidebar search plus agent filters for `all`, `claude`, `codex`, `gemini`, `copilot`, `cursor`, and `opencode`
 - Recent activity landing dashboard with summary cards, a 7-day cadence chart, and a latest-session timeline
 - Grouped conversation list by agent and project
 - Transcript focus mode and full-screen transcript mode
@@ -155,6 +155,9 @@ scripts/   Local setup helpers
 - Claude project/session logs
 - Codex session logs
 - Gemini chat/session exports supported by the parser fixtures
+- OpenCode native SQLite/session storage from `~/.local/share/opencode`
+- GitHub Copilot chat session JSON when you watch the specific chat-session folder
+- Cursor exported Markdown transcripts when you watch an export folder or file
 
 ## Maintenance Note
 

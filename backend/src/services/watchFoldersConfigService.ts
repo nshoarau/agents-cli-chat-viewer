@@ -48,6 +48,18 @@ const slugify = (value: string): string =>
     .slice(0, 48) || 'watch-folder';
 
 const randomId = (): string => crypto.randomBytes(6).toString('hex');
+const SUPPORTED_LOG_EXTENSIONS = new Set(['.json', '.jsonl', '.md']);
+const RECOMMENDATION_SCAN_IGNORED_NAMES = new Set([
+  '.git',
+  'debug',
+  'downloads',
+  'file-history',
+  'memory',
+  'node_modules',
+  'plans',
+  'telemetry',
+  'usage-data',
+]);
 
 const pathExists = async (targetPath: string): Promise<boolean> => {
   try {
@@ -56,6 +68,70 @@ const pathExists = async (targetPath: string): Promise<boolean> => {
   } catch {
     return false;
   }
+};
+
+const isRelevantConversationArtifact = (targetPath: string): boolean => {
+  const baseName = path.basename(targetPath).toLowerCase();
+  if (baseName === 'opencode.db') {
+    return true;
+  }
+
+  return SUPPORTED_LOG_EXTENSIONS.has(path.extname(targetPath).toLowerCase());
+};
+
+const hasRelevantConversationFiles = async (
+  targetPath: string,
+  remainingDepth = 6
+): Promise<boolean> => {
+  let stats;
+  try {
+    stats = await fs.stat(targetPath);
+  } catch {
+    return false;
+  }
+
+  if (stats.isFile()) {
+    return isRelevantConversationArtifact(targetPath) && stats.size > 0;
+  }
+
+  if (!stats.isDirectory() || remainingDepth < 0) {
+    return false;
+  }
+
+  let children: Array<{
+    name: string;
+    isFile: () => boolean;
+    isDirectory: () => boolean;
+    isSymbolicLink: () => boolean;
+  }>;
+  try {
+    children = await fs.readdir(targetPath, { withFileTypes: true });
+  } catch {
+    return false;
+  }
+
+  for (const child of children) {
+    if (RECOMMENDATION_SCAN_IGNORED_NAMES.has(child.name)) {
+      continue;
+    }
+
+    const childPath = path.join(targetPath, child.name);
+
+    if (child.isFile()) {
+      if (isRelevantConversationArtifact(childPath)) {
+        return true;
+      }
+      continue;
+    }
+
+    if (child.isDirectory() || child.isSymbolicLink()) {
+      if (await hasRelevantConversationFiles(childPath, remainingDepth - 1)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 };
 
 const defaultFolderCandidates = (homeDir = os.homedir()): DefaultFolderCandidate[] => {
@@ -107,6 +183,7 @@ const defaultFolderCandidates = (homeDir = os.homedir()): DefaultFolderCandidate
 
 export const __testUtils = {
   defaultFolderCandidates,
+  hasRelevantConversationFiles,
 };
 
 export class WatchFoldersConfigService {
@@ -140,6 +217,10 @@ export class WatchFoldersConfigService {
 
     for (const candidate of defaultFolderCandidates()) {
       if (!(await pathExists(candidate.sourcePath))) {
+        continue;
+      }
+
+      if (!(await hasRelevantConversationFiles(candidate.sourcePath))) {
         continue;
       }
 

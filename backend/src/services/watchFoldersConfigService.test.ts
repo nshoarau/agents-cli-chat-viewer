@@ -1,3 +1,4 @@
+import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
 import { describe, expect, it, vi } from 'vitest';
@@ -32,5 +33,26 @@ describe('watchFoldersConfigService default folder candidates', () => {
     );
 
     homeSpy.mockRestore();
+  });
+
+  it('rejects empty folders that are not conversation-relevant', async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'watch-folders-empty-'));
+
+    await fs.mkdir(path.join(tempDir, 'nested'));
+    await fs.writeFile(path.join(tempDir, 'nested', 'notes.txt'), 'not a conversation');
+
+    await expect(__testUtils.hasRelevantConversationFiles(tempDir)).resolves.toBe(false);
+  });
+
+  it('accepts folders that contain supported conversation files', async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'watch-folders-relevant-'));
+
+    await fs.mkdir(path.join(tempDir, '2026', '03', '19'), { recursive: true });
+    await fs.writeFile(
+      path.join(tempDir, '2026', '03', '19', 'rollout-2026-03-19T13-46.jsonl'),
+      '{"type":"session_meta"}\n'
+    );
+
+    await expect(__testUtils.hasRelevantConversationFiles(tempDir)).resolves.toBe(true);
   });
 });

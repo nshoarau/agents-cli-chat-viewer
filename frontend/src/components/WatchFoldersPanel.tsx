@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../services/apiClient';
 import type { WatchFolderRecommendation, WatchFoldersResponse } from '../types';
@@ -25,7 +25,8 @@ export const WatchFoldersPanel: React.FC<WatchFoldersPanelProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeRecommendationPath, setActiveRecommendationPath] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isCustomPathOpen, setIsCustomPathOpen] = useState(shouldHighlightRecommendations === false);
+  const [isSuggestedSourcesOpen, setIsSuggestedSourcesOpen] = useState(false);
+  const [isCustomPathOpen, setIsCustomPathOpen] = useState(false);
 
   const { data, isPending, error } = useQuery({
     queryKey: ['watch-folders'],
@@ -37,6 +38,15 @@ export const WatchFoldersPanel: React.FC<WatchFoldersPanelProps> = ({
   });
   const watchFolders = data?.folders ?? [];
   const recommendations = data?.recommendations ?? [];
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    setIsSuggestedSourcesOpen(false);
+    setIsCustomPathOpen(false);
+  }, [isOpen]);
 
   if (!isOpen) {
     return null;
@@ -131,30 +141,46 @@ export const WatchFoldersPanel: React.FC<WatchFoldersPanelProps> = ({
 
         {recommendations.length > 0 ? (
           <div className="watch-folders-section watch-folders-section-card">
-            <div className="watch-folders-section-header">
-              <h3>Suggested Sources</h3>
-              <span>{recommendations.length} available</span>
-            </div>
-            <div className="watch-folders-list watch-folders-suggested-list">
-              {recommendations.map((folder) => (
-                <div key={folder.sourcePath} className="watch-folder-item watch-folder-item-recommended">
-                  <div className="watch-folder-meta">
-                    <div className="watch-folder-label-row">
-                      <strong>{folder.label}</strong>
-                      <span className="watch-folder-kind kind-default">suggested</span>
-                    </div>
-                    <div className="watch-folder-path">{folder.sourcePath}</div>
-                  </div>
-                  <button
-                    className="btn-add-folder"
-                    onClick={() => enableRecommendation(folder)}
-                    disabled={activeRecommendationPath === folder.sourcePath}
-                  >
-                    {activeRecommendationPath === folder.sourcePath ? 'Enabling...' : 'Enable'}
-                  </button>
+            <button
+              type="button"
+              className={`watch-folders-section-toggle ${isSuggestedSourcesOpen ? 'is-open' : ''}`}
+              onClick={() => setIsSuggestedSourcesOpen((current) => !current)}
+              aria-expanded={isSuggestedSourcesOpen}
+            >
+              <span className="watch-folders-section-header">
+                <h3>Suggested Sources</h3>
+                <span>{recommendations.length} available</span>
+              </span>
+              <span className="watch-folders-section-chevron" aria-hidden="true">▾</span>
+            </button>
+            {isSuggestedSourcesOpen ? (
+              <>
+                <div className="watch-folders-inline-hint">
+                  <span className="watch-folders-inline-hint-badge">Auto</span>
+                  One-click sources found automatically. These only appear when relevant conversation files are present.
                 </div>
-              ))}
-            </div>
+                <div className="watch-folders-list watch-folders-suggested-list">
+                {recommendations.map((folder) => (
+                  <div key={folder.sourcePath} className="watch-folder-item watch-folder-item-recommended">
+                    <div className="watch-folder-meta">
+                      <div className="watch-folder-label-row">
+                        <strong>{folder.label}</strong>
+                        <span className="watch-folder-kind kind-default">suggested</span>
+                      </div>
+                      <div className="watch-folder-path">{folder.sourcePath}</div>
+                    </div>
+                    <button
+                      className="btn-add-folder"
+                      onClick={() => enableRecommendation(folder)}
+                      disabled={activeRecommendationPath === folder.sourcePath}
+                    >
+                      {activeRecommendationPath === folder.sourcePath ? 'Enabling...' : 'Enable'}
+                    </button>
+                  </div>
+                ))}
+                </div>
+              </>
+            ) : null}
           </div>
         ) : (
           <div className="watch-folders-empty watch-folders-section-card">
@@ -178,27 +204,36 @@ export const WatchFoldersPanel: React.FC<WatchFoldersPanelProps> = ({
 
           {isCustomPathOpen ? (
             <div className="watch-folders-form">
+              <div className="watch-folders-inline-hint">
+                <span className="watch-folders-inline-hint-badge">Tip</span>
+                Use an absolute path to a folder or one conversation file. Add a label only if you want a custom display name.
+              </div>
+              <div className="watch-folders-field-label">Absolute path to a folder or single supported log file</div>
               <input
                 type="text"
                 placeholder="Absolute path"
                 value={folderPath}
                 onChange={(event) => setFolderPath(event.target.value)}
               />
+              <div className="watch-folders-field-label">Optional display label shown in Enabled Sources</div>
               <input
                 type="text"
                 placeholder="Optional label"
                 value={label}
                 onChange={(event) => setLabel(event.target.value)}
               />
-              <button className="btn-add-folder" onClick={addFolder} disabled={isSubmitting}>
+              <button
+                className="btn-add-folder"
+                onClick={addFolder}
+                disabled={isSubmitting}
+              >
                 Add Folder
               </button>
+              <div className="watch-folders-field-label">
+                Adding a source rebuilds the index so matching conversations appear in the dashboard.
+              </div>
             </div>
-          ) : (
-            <div className="watch-folders-section-summary">
-              Add a file or directory manually if your agent logs are outside the suggested locations.
-            </div>
-          )}
+          ) : null}
         </div>
 
         {isPending ? <div className="watch-folders-empty">Loading watch folders...</div> : null}
@@ -209,6 +244,10 @@ export const WatchFoldersPanel: React.FC<WatchFoldersPanelProps> = ({
           <div className="watch-folders-section-header">
             <h3>Enabled Sources</h3>
             <span>{watchFolders.length}</span>
+          </div>
+          <div className="watch-folders-inline-hint">
+            <span className="watch-folders-inline-hint-badge">Live</span>
+            These sources are currently indexed. Remove one to stop mirroring and hide its conversations after reindexing.
           </div>
           {watchFolders.length === 0 ? (
             <div className="watch-folders-empty">No watched folders are enabled yet.</div>
@@ -223,7 +262,10 @@ export const WatchFoldersPanel: React.FC<WatchFoldersPanelProps> = ({
                     </div>
                     <div className="watch-folder-path">{folder.sourcePath}</div>
                   </div>
-                  <button className="btn-remove-folder" onClick={() => removeFolder(folder.id)}>
+                  <button
+                    className="btn-remove-folder"
+                    onClick={() => removeFolder(folder.id)}
+                  >
                     Remove
                   </button>
                 </div>

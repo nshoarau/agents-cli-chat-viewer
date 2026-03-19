@@ -75,9 +75,9 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
   const [promptNavigationIndex, setPromptNavigationIndex] = useState<Record<string, number>>(
     initialPreferences.promptNavigationIndex
   );
-  const [searchQuery, setSearchQuery] = useState<Record<string, string>>(initialPreferences.searchQuery);
+  const [searchQuery, setSearchQuery] = useState<Record<string, string>>({});
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<Record<string, string>>(
-    initialPreferences.searchQuery
+    {}
   );
   const [searchNavigationIndex, setSearchNavigationIndex] = useState<Record<string, number>>(
     initialPreferences.searchNavigationIndex
@@ -103,7 +103,6 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
       sessionActivityVisibility,
       agentActivityVisibility,
       filesPanelVisibility,
-      searchQuery,
       promptNavigationIndex,
       searchNavigationIndex,
       editorSelection,
@@ -122,7 +121,6 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
     isSidebarCollapsed,
     promptNavigationIndex,
     searchNavigationIndex,
-    searchQuery,
     sessionActivityVisibility,
   ]);
 
@@ -639,6 +637,8 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
           onSetSidebarCollapsed(nextCollapsed);
         }}
         onToggleAllActivities={toggleAllAgentActivities}
+        hasFiles={conversationFileGroups.length > 0}
+        onOpenFilesModal={() => setIsFilesModalOpen(true)}
         onPreviousPrompt={() => navigateToPrompt(activePromptPosition - 1)}
         onNextPrompt={() => navigateToPrompt(activePromptPosition + 1)}
         onExportJson={() =>
@@ -669,20 +669,22 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
         disablePreviousPrompt={activePromptPosition === 0}
         disableNextPrompt={activePromptPosition >= userPromptIndexes.length - 1}
       />
-      <ConversationFilesPanel
-        groups={conversationFileGroups}
-        isExpanded={isFilesPanelExpanded}
-        onOpenFullList={() => setIsFilesModalOpen(true)}
-        onToggleExpanded={() =>
-          setFilesPanelVisibility((current) => ({
-            ...current,
-            [conversationId]: !(current[conversationId] ?? false),
-          }))
-        }
-        onOpenFile={(filePath) => {
-          setFilePreviewPath(filePath);
-        }}
-      />
+      {!isHeaderCollapsed ? (
+        <ConversationFilesPanel
+          groups={conversationFileGroups}
+          isExpanded={isFilesPanelExpanded}
+          onOpenFullList={() => setIsFilesModalOpen(true)}
+          onToggleExpanded={() =>
+            setFilesPanelVisibility((current) => ({
+              ...current,
+              [conversationId]: !(current[conversationId] ?? false),
+            }))
+          }
+          onOpenFile={(filePath) => {
+            setFilePreviewPath(filePath);
+          }}
+        />
+      ) : null}
       <div className="message-list">
         <List
           className="message-list-virtualized"

@@ -13,6 +13,7 @@ const EyeIcon = () => <span aria-hidden="true">◉</span>;
 const LayersIcon = () => <span aria-hidden="true">▥</span>;
 const ExportIcon = () => <span aria-hidden="true">↧</span>;
 const EditorIcon = () => <span aria-hidden="true">⌘</span>;
+const FilesIcon = () => <span aria-hidden="true">≣</span>;
 
 interface ConversationDetailHeaderProps {
   conversation: Conversation;
@@ -24,6 +25,7 @@ interface ConversationDetailHeaderProps {
   showSessionActivity: boolean;
   hasExpandableActivities: boolean;
   allAgentActivitiesExpanded: boolean;
+  hasFiles: boolean;
   searchQuery: string;
   searchInputRef: React.RefObject<HTMLInputElement | null>;
   searchMatchPosition: number;
@@ -44,6 +46,7 @@ interface ConversationDetailHeaderProps {
   onJetBrainsProductChange: (value: JetBrainsProductId) => void;
   onJetBrainsProjectNameChange: (value: string) => void;
   onToggleAllActivities: () => void;
+  onOpenFilesModal: () => void;
   onPreviousPrompt: () => void;
   onNextPrompt: () => void;
   onExportJson: () => void;
@@ -65,6 +68,7 @@ export const ConversationDetailHeader: React.FC<ConversationDetailHeaderProps> =
   showSessionActivity,
   hasExpandableActivities,
   allAgentActivitiesExpanded,
+  hasFiles,
   searchQuery,
   searchInputRef,
   searchMatchPosition,
@@ -85,6 +89,7 @@ export const ConversationDetailHeader: React.FC<ConversationDetailHeaderProps> =
   onJetBrainsProductChange,
   onJetBrainsProjectNameChange,
   onToggleAllActivities,
+  onOpenFilesModal,
   onPreviousPrompt,
   onNextPrompt,
   onExportJson,
@@ -336,6 +341,17 @@ export const ConversationDetailHeader: React.FC<ConversationDetailHeaderProps> =
                 <LayersIcon />
               </button>
             ) : null}
+            {hasFiles ? (
+              <button
+                type="button"
+                className="btn-session-activity-toggle btn-session-activity-icon"
+                onClick={onOpenFilesModal}
+                aria-label="Open Files"
+                title="Open Files"
+              >
+                <FilesIcon />
+              </button>
+            ) : null}
           </div>
         ) : (
           <div className="detail-utility-strip">
@@ -428,6 +444,18 @@ export const ConversationDetailHeader: React.FC<ConversationDetailHeaderProps> =
               >
                 <LayersIcon />
                 {!isHeaderCollapsed ? <span> {allAgentActivitiesExpanded ? 'Collapse All' : 'Expand All'}</span> : null}
+              </button>
+            ) : null}
+            {hasFiles ? (
+              <button
+                type="button"
+                className={`btn-session-activity-toggle ${isHeaderCollapsed ? 'btn-session-activity-icon' : ''}`}
+                onClick={onOpenFilesModal}
+                aria-label="Open Files"
+                title="Open Files"
+              >
+                <FilesIcon />
+                {!isHeaderCollapsed ? <span> Open Files</span> : null}
               </button>
             ) : null}
           </div>

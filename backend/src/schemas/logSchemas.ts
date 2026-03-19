@@ -26,7 +26,14 @@ export const SessionActivitySchema = z.object({
   toolCalls: z.array(ActivityToolCallSchema),
 });
 
-export const AgentTypeSchema = z.enum(['gemini', 'claude', 'codex']);
+export const AgentTypeSchema = z.enum([
+  'gemini',
+  'claude',
+  'codex',
+  'copilot',
+  'cursor',
+  'opencode',
+]);
 
 export const BaseConversationSchema = z.object({
   id: z.string(),

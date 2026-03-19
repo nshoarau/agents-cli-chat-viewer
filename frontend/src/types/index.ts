@@ -1,4 +1,10 @@
-export type AgentType = 'gemini' | 'claude' | 'codex';
+export type AgentType =
+  | 'gemini'
+  | 'claude'
+  | 'codex'
+  | 'copilot'
+  | 'cursor'
+  | 'opencode';
 
 export interface Message {
   id?: string;

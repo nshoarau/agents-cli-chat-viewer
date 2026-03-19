@@ -12,6 +12,7 @@ import {
   OpenCodeDbService,
   parseOpenCodeSessionVirtualPath,
 } from './openCodeDbService.js';
+import { isCursorChatDatabasePath } from './cursorChatDbService.js';
 
 export interface ConversationSummary extends ParsedConversationSummary {
   id: string;
@@ -83,7 +84,11 @@ const isSupportedLogFile = (filePath: string): boolean => {
     return false;
   }
 
-  return isOpenCodeDatabasePath(filePath) || SUPPORTED_EXTENSIONS.has(path.extname(filePath).toLowerCase());
+  return (
+    isOpenCodeDatabasePath(filePath) ||
+    isCursorChatDatabasePath(filePath) ||
+    SUPPORTED_EXTENSIONS.has(path.extname(filePath).toLowerCase())
+  );
 };
 
 const getProjectData = (
@@ -127,6 +132,13 @@ const getProjectData = (
     return {
       project: 'opencode',
       projectPath: 'opencode',
+    };
+  }
+
+  if (watchRoot === 'cursor-chats') {
+    return {
+      project: 'cursor',
+      projectPath: 'cursor',
     };
   }
 

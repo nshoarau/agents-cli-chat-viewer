@@ -53,10 +53,16 @@ export class WatcherService extends EventEmitter {
   private handleFileChange(event: 'add' | 'change' | 'unlink', filePath: string) {
     const ext = path.extname(filePath).toLowerCase();
     const isOpenCodeDb = path.basename(filePath) === 'opencode.db';
+    const isCursorChatDb =
+      path.basename(filePath) === 'store.db' &&
+      (
+        filePath.includes(`${path.sep}.cursor${path.sep}chats${path.sep}`) ||
+        filePath.includes(`${path.sep}cursor-chats${path.sep}`)
+      );
     const segments = filePath.split(path.sep);
     const hasIgnoredSegment = segments.some((segment) => IGNORED_PATH_SEGMENTS.has(segment));
 
-    if (!hasIgnoredSegment && (['.json', '.jsonl', '.md'].includes(ext) || isOpenCodeDb)) {
+    if (!hasIgnoredSegment && (['.json', '.jsonl', '.md'].includes(ext) || isOpenCodeDb || isCursorChatDb)) {
       if (WATCHER_VERBOSE_LOGS) {
         console.log(`File ${event}: ${filePath}`);
       }

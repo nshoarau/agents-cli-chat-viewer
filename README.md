@@ -60,7 +60,7 @@ If you want the onboarding wizard to auto-detect agent folders from the host, us
 ### 3. First run in the UI
 
 1. Open `Watched Folders`
-2. Enable any suggested Claude, Codex, Gemini, or OpenCode source with one click
+2. Enable any suggested Claude, Codex, Gemini, Cursor, or OpenCode source with one click
 3. Or expand `Custom Path` and add an absolute folder/file path manually
 4. The app will rebuild the index and show matching conversations
 
@@ -157,6 +157,7 @@ scripts/   Local setup helpers
 - Gemini chat/session exports supported by the parser fixtures
 - OpenCode native SQLite/session storage from `~/.local/share/opencode`
 - GitHub Copilot chat session JSON when you watch the specific chat-session folder
+- Cursor CLI chats from `~/.cursor/chats`
 - Cursor exported Markdown transcripts when you watch an export folder or file
 
 ## Maintenance Note

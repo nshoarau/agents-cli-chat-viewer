@@ -1,6 +1,10 @@
 import type { Conversation } from '../types';
 import { toDisplayFilePath } from './displayFilePath';
-import { extractMessageFileReferences } from './fileReferenceUtils';
+import {
+  extractMessageFileReferences,
+  isPreviewablePathReference,
+  toPreviewablePathReference,
+} from './fileReferenceUtils';
 
 export type ConversationFileSource = 'prompt' | 'activity' | 'both';
 
@@ -31,6 +35,21 @@ const normalizePath = (value: string): string => value.replace(/\\/g, '/');
 const trimTrailingSlash = (value: string): string => value.replace(/\/+$/, '');
 const isAbsolutePath = (value: string): boolean =>
   value.startsWith('/') || value.startsWith('\\\\') || /^[A-Za-z]:[\\/]/.test(value);
+const isSingleSegmentFileName = (value: string): boolean => {
+  const normalized = trimTrailingSlash(normalizePath(value));
+
+  if (!normalized || normalized.includes('/')) {
+    return false;
+  }
+
+  const baseName = normalized.split('/').pop() ?? normalized;
+  return (
+    (baseName.includes('.') && !baseName.endsWith('.')) ||
+    baseName.startsWith('.')
+  );
+};
+const isPreviewableActivityPathReference = (value: string): boolean =>
+  isPreviewablePathReference(value) || isSingleSegmentFileName(toPreviewablePathReference(value));
 
 const toCanonicalPreviewPath = (filePath: string, projectPath?: string): string => {
   const normalizedFilePath = normalizePath(filePath);
@@ -204,20 +223,32 @@ export const buildConversationFileGroups = (conversation?: Conversation): Conver
   });
 
   conversation.sessionActivity?.toolCalls.forEach((toolCall) => {
-    if (!toolCall.filePath) {
+    if (!toolCall.filePath || !isPreviewableActivityPathReference(toolCall.filePath)) {
       return;
     }
 
     const timestamp = toolCall.timestamp ? new Date(toolCall.timestamp).getTime() : Number.NaN;
-    touchEntry(toolCall.filePath, 'activity', Number.isFinite(timestamp) ? timestamp : null, 3, toolCall.filePath);
+    const previewablePath = toPreviewablePathReference(toolCall.filePath);
+    touchEntry(
+      previewablePath,
+      'activity',
+      Number.isFinite(timestamp) ? timestamp : null,
+      3,
+      previewablePath
+    );
   });
 
   conversation.sessionActivity?.filesTouched.forEach((filePath) => {
-    const canonicalFilePath = toCanonicalPreviewPath(filePath, conversation.projectPath);
+    if (!isPreviewableActivityPathReference(filePath)) {
+      return;
+    }
+
+    const previewablePath = toPreviewablePathReference(filePath);
+    const canonicalFilePath = toCanonicalPreviewPath(previewablePath, conversation.projectPath);
     const existing = entries.get(canonicalFilePath);
 
     if (!existing || existing.activityCount === 0) {
-      touchEntry(filePath, 'activity', null, 1, filePath);
+      touchEntry(previewablePath, 'activity', null, 1, previewablePath);
     }
   });
 

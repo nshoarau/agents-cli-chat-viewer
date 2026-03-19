@@ -28,7 +28,7 @@ interface ToastState {
 }
 
 type AgentLauncherOption = {
-  agent: 'all' | 'claude' | 'codex' | 'gemini';
+  agent: 'all' | AgentType;
   title: string;
   description: string;
 };
@@ -43,7 +43,20 @@ const AGENT_DISPLAY_NAMES: Record<AgentType, string> = {
   claude: 'Claude',
   codex: 'Codex',
   gemini: 'Gemini',
+  copilot: 'Copilot',
+  cursor: 'Cursor',
+  opencode: 'OpenCode',
 };
+
+const AGENT_ORDER: AgentType[] = ['claude', 'codex', 'gemini', 'copilot', 'cursor', 'opencode'];
+const emptyAgentCounts = (): Record<AgentType, number> => ({
+  claude: 0,
+  codex: 0,
+  gemini: 0,
+  copilot: 0,
+  cursor: 0,
+  opencode: 0,
+});
 
 const DAY_WINDOW = 7;
 
@@ -90,11 +103,7 @@ const buildActivityDaySummaries = (items: ConversationSummary[]): ActivityDaySum
       date,
       label: new Intl.DateTimeFormat(undefined, { weekday: 'short' }).format(date),
       total: 0,
-      byAgent: {
-        claude: 0,
-        codex: 0,
-        gemini: 0,
-      } satisfies Record<AgentType, number>,
+      byAgent: emptyAgentCounts(),
     };
   });
 
@@ -130,6 +139,32 @@ const getErrorMessage = (error: unknown): string => {
   }
 
   return 'Unknown error';
+};
+
+const detectAgentsFromText = (value: string): AgentType[] => {
+  const normalizedValue = value.toLowerCase();
+  const agents: AgentType[] = [];
+
+  if (normalizedValue.includes('claude')) {
+    agents.push('claude');
+  }
+  if (normalizedValue.includes('codex')) {
+    agents.push('codex');
+  }
+  if (normalizedValue.includes('gemini')) {
+    agents.push('gemini');
+  }
+  if (normalizedValue.includes('copilot')) {
+    agents.push('copilot');
+  }
+  if (normalizedValue.includes('cursor')) {
+    agents.push('cursor');
+  }
+  if (normalizedValue.includes('opencode')) {
+    agents.push('opencode');
+  }
+
+  return agents;
 };
 
 export const Dashboard: React.FC = () => {
@@ -278,7 +313,7 @@ export const Dashboard: React.FC = () => {
         counts[conversation.agentType] += 1;
         return counts;
       },
-      { claude: 0, codex: 0, gemini: 0 }
+      emptyAgentCounts()
     );
     const activeCount = filteredConversations.filter((conversation) => conversation.status === 'active').length;
     const archivedCount = filteredConversations.filter((conversation) => conversation.status === 'archived').length;
@@ -334,26 +369,24 @@ export const Dashboard: React.FC = () => {
   const hasIndexedConversations = totalConversations > 0;
   const hasAnyConfiguredFolders = configuredWatchFolders.length > 0;
   const hasRecommendations = recommendedWatchFolders.length > 0;
-  const availableAgentOptions = useMemo<AgentLauncherOption[]>(() => {
-    const detectedAgents = new Set<'claude' | 'codex' | 'gemini'>();
+  const availableAgents = useMemo<AgentType[]>(() => {
+    const detectedAgents = new Set<AgentType>();
 
-    configuredWatchFolders.forEach((folder) => {
-      const folderText = `${folder.label} ${folder.sourcePath} ${folder.targetName}`.toLowerCase();
-
-      if (folderText.includes('claude')) {
-        detectedAgents.add('claude');
-      }
-      if (folderText.includes('codex')) {
-        detectedAgents.add('codex');
-      }
-      if (folderText.includes('gemini')) {
-        detectedAgents.add('gemini');
-      }
+    [...configuredWatchFolders, ...recommendedWatchFolders].forEach((folder) => {
+      const folderText = `${folder.label} ${folder.sourcePath} ${folder.targetName}`;
+      detectAgentsFromText(folderText).forEach((agent) => detectedAgents.add(agent));
     });
 
+    conversations.forEach((conversation) => {
+      detectedAgents.add(conversation.agentType);
+    });
+
+    return AGENT_ORDER.filter((agent) => detectedAgents.has(agent));
+  }, [configuredWatchFolders, recommendedWatchFolders, conversations]);
+  const availableAgentOptions = useMemo<AgentLauncherOption[]>(() => {
     const orderedAgents: AgentLauncherOption[] = [];
 
-    if (detectedAgents.size > 1) {
+    if (availableAgents.length > 1) {
       orderedAgents.push({
         agent: 'all',
         title: 'All Agents',
@@ -366,9 +399,12 @@ export const Dashboard: React.FC = () => {
         ['claude', 'Claude', 'Browse imported Claude sessions from your watched folders.'],
         ['codex', 'Codex', 'Open Codex session logs directly from the indexed workspace.'],
         ['gemini', 'Gemini', 'Jump into Gemini conversations without using the compact filter bar.'],
+        ['copilot', 'Copilot', 'Review local Copilot Chat sessions when their chat session folders are watched.'],
+        ['cursor', 'Cursor', 'Open exported Cursor chats or Cursor-specific watch folders from one place.'],
+        ['opencode', 'OpenCode', 'Inspect OpenCode sessions from the native session storage directory.'],
       ] as const
     ).forEach(([agent, title, description]) => {
-      if (!detectedAgents.has(agent)) {
+      if (!availableAgents.includes(agent)) {
         return;
       }
 
@@ -380,7 +416,7 @@ export const Dashboard: React.FC = () => {
     });
 
     return orderedAgents;
-  }, [configuredWatchFolders]);
+  }, [availableAgents]);
 
   const handleConversationDeleted = (deletedId: string) => {
     setSelectedId(getNextConversationIdAfterDelete(filteredConversations, deletedId));
@@ -589,18 +625,14 @@ export const Dashboard: React.FC = () => {
                   </div>
                 </div>
                 <div className="recent-activity-chart-legend" aria-label="Chart legend">
-                  <span className="recent-activity-chart-legend-item">
-                    <span className="recent-activity-chart-dot is-claude" />
-                    Claude
-                  </span>
-                  <span className="recent-activity-chart-legend-item">
-                    <span className="recent-activity-chart-dot is-codex" />
-                    Codex
-                  </span>
-                  <span className="recent-activity-chart-legend-item">
-                    <span className="recent-activity-chart-dot is-gemini" />
-                    Gemini
-                  </span>
+                  {AGENT_ORDER.filter((agent) =>
+                    recentActivityDays.some((day) => day.byAgent[agent] > 0)
+                  ).map((agent) => (
+                    <span key={agent} className="recent-activity-chart-legend-item">
+                      <span className={`recent-activity-chart-dot is-${agent}`} />
+                      {AGENT_DISPLAY_NAMES[agent]}
+                    </span>
+                  ))}
                 </div>
                 {activityView === 'bars' ? (
                   <div className="recent-activity-bars" aria-label="Activity cadence chart">
@@ -620,18 +652,13 @@ export const Dashboard: React.FC = () => {
                       return (
                         <div key={day.label} className="recent-activity-bar-column">
                           <div className="recent-activity-bar-stack" title={`${day.label}: ${day.total} sessions`}>
-                            <span
-                              className="recent-activity-bar-segment is-claude"
-                              style={toSegmentStyle(day.byAgent.claude)}
-                            />
-                            <span
-                              className="recent-activity-bar-segment is-codex"
-                              style={toSegmentStyle(day.byAgent.codex)}
-                            />
-                            <span
-                              className="recent-activity-bar-segment is-gemini"
-                              style={toSegmentStyle(day.byAgent.gemini)}
-                            />
+                            {AGENT_ORDER.map((agent) => (
+                              <span
+                                key={agent}
+                                className={`recent-activity-bar-segment is-${agent}`}
+                                style={toSegmentStyle(day.byAgent[agent])}
+                              />
+                            ))}
                           </div>
                           <span className="recent-activity-bar-value">{day.total}</span>
                           <span className="recent-activity-bar-label">{day.label}</span>
@@ -648,18 +675,13 @@ export const Dashboard: React.FC = () => {
                           <span>{day.total} sessions</span>
                         </div>
                         <div className="recent-activity-mix-track">
-                          <span
-                            className="recent-activity-mix-segment is-claude"
-                            style={{ flexGrow: day.byAgent.claude }}
-                          />
-                          <span
-                            className="recent-activity-mix-segment is-codex"
-                            style={{ flexGrow: day.byAgent.codex }}
-                          />
-                          <span
-                            className="recent-activity-mix-segment is-gemini"
-                            style={{ flexGrow: day.byAgent.gemini }}
-                          />
+                          {AGENT_ORDER.map((agent) => (
+                            <span
+                              key={agent}
+                              className={`recent-activity-mix-segment is-${agent}`}
+                              style={{ flexGrow: day.byAgent[agent] }}
+                            />
+                          ))}
                         </div>
                       </div>
                     ))}
@@ -772,7 +794,7 @@ export const Dashboard: React.FC = () => {
                   </button>
                 </div>
               </div>
-              <FilterBar />
+              <FilterBar availableAgents={availableAgents} />
             </>
           ) : (
             <div className="sidebar-reduced-header">

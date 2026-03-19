@@ -493,6 +493,11 @@ body {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  overflow-y: auto;
+}
+
+.watch-folders-panel > * {
+  flex-shrink: 0;
 }
 
 .watch-folders-header {
@@ -551,6 +556,37 @@ body {
   gap: 10px;
 }
 
+.watch-folders-inline-hint {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(88, 108, 154, 0.42);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(33, 43, 70, 0.76) 0%, rgba(24, 31, 51, 0.76) 100%);
+  color: #d5def1;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.watch-folders-inline-hint-badge {
+  flex-shrink: 0;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #9bb0ff 0%, #6e84e2 100%);
+  color: #0f172a;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.watch-folders-field-label {
+  color: #91a3c2;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
 .watch-folders-section {
   display: grid;
   gap: 12px;
@@ -563,6 +599,8 @@ body {
   border-radius: 14px;
   background: linear-gradient(180deg, rgba(24, 28, 38, 0.98) 0%, rgba(18, 22, 31, 0.98) 100%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+  overflow: hidden;
+  flex-shrink: 0;
 }
 
 .watch-folders-section-header {
@@ -581,7 +619,7 @@ body {
 
 .watch-folders-section-toggle {
   width: 100%;
-  padding: 0;
+  padding: 6px 0;
   border: none;
   background: transparent;
   color: inherit;
@@ -591,15 +629,20 @@ body {
   justify-content: space-between;
   gap: 12px;
   text-align: left;
+  min-height: 68px;
 }
 
 .watch-folders-section-toggle .watch-folders-section-header {
   flex: 1;
 }
 
+.watch-folders-section-toggle .watch-folders-section-header h3 {
+  font-size: 1.08rem;
+}
+
 .watch-folders-section-chevron {
   color: #a5b4fc;
-  font-size: 1rem;
+  font-size: 1.2rem;
   transition: transform 140ms ease;
 }
 
@@ -625,6 +668,7 @@ body {
   flex-direction: column;
   gap: 10px;
   overflow-y: auto;
+  min-height: 0;
 }
 
 .watch-folders-suggested-list,

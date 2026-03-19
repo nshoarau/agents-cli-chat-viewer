@@ -12,7 +12,7 @@ vi.mock('../services/apiClient', () => ({
   },
 }));
 
-const renderPanel = () => {
+const renderPanel = (isOpen = true) => {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -22,7 +22,12 @@ const renderPanel = () => {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <WatchFoldersPanel isOpen onClose={vi.fn()} onShowToast={vi.fn()} shouldHighlightRecommendations />
+      <WatchFoldersPanel
+        isOpen={isOpen}
+        onClose={vi.fn()}
+        onShowToast={vi.fn()}
+        shouldHighlightRecommendations
+      />
     </QueryClientProvider>
   );
 };
@@ -51,7 +56,12 @@ describe('WatchFoldersPanel onboarding', () => {
     renderPanel();
 
     expect(await screen.findByText('Suggested Sources')).toBeInTheDocument();
+    expect(screen.queryByText('/home/test/.codex/sessions')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Suggested Sources/i }));
+
     expect(screen.getByText('/home/test/.codex/sessions')).toBeInTheDocument();
+    expect(screen.getByText(/one-click sources found automatically/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Enable' }));
 
@@ -61,5 +71,111 @@ describe('WatchFoldersPanel onboarding', () => {
         label: 'Codex Sessions',
       })
     );
+  });
+
+  it('allows suggested sources to be collapsed', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      data: {
+        folders: [],
+        recommendations: [
+          {
+            label: 'Codex Sessions',
+            sourcePath: '/home/test/.codex/sessions',
+            targetName: 'codex-sessions',
+            kind: 'default',
+          },
+        ],
+      },
+    } as never);
+
+    renderPanel();
+
+    expect(await screen.findByText('Suggested Sources')).toBeInTheDocument();
+    expect(screen.queryByText('/home/test/.codex/sessions')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Suggested Sources/i }));
+
+    expect(screen.getByText('/home/test/.codex/sessions')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Suggested Sources/i }));
+
+    expect(screen.queryByText('/home/test/.codex/sessions')).not.toBeInTheDocument();
+  });
+
+  it('keeps custom path collapsed on first render', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      data: {
+        folders: [],
+        recommendations: [],
+      },
+    } as never);
+
+    renderPanel();
+
+    expect(await screen.findByText('Custom Path')).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Absolute path')).not.toBeInTheDocument();
+  });
+
+  it('resets both collapsible sections when the panel opens again', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      data: {
+        folders: [],
+        recommendations: [
+          {
+            label: 'Claude Sessions',
+            sourcePath: '/home/test/.claude/sessions',
+            targetName: 'claude-sessions',
+            kind: 'default',
+          },
+        ],
+      },
+    } as never);
+
+    const view = renderPanel(false);
+
+    view.rerender(
+      <QueryClientProvider client={new QueryClient({
+        defaultOptions: {
+          queries: { retry: false },
+          mutations: { retry: false },
+        },
+      })}>
+        <WatchFoldersPanel isOpen onClose={vi.fn()} onShowToast={vi.fn()} shouldHighlightRecommendations />
+      </QueryClientProvider>
+    );
+
+    expect(await screen.findByText('Suggested Sources')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Suggested Sources/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Custom Path/i }));
+
+    expect(screen.getByText('/home/test/.claude/sessions')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Absolute path')).toBeInTheDocument();
+
+    view.rerender(
+      <QueryClientProvider client={new QueryClient({
+        defaultOptions: {
+          queries: { retry: false },
+          mutations: { retry: false },
+        },
+      })}>
+        <WatchFoldersPanel isOpen={false} onClose={vi.fn()} onShowToast={vi.fn()} shouldHighlightRecommendations />
+      </QueryClientProvider>
+    );
+
+    view.rerender(
+      <QueryClientProvider client={new QueryClient({
+        defaultOptions: {
+          queries: { retry: false },
+          mutations: { retry: false },
+        },
+      })}>
+        <WatchFoldersPanel isOpen onClose={vi.fn()} onShowToast={vi.fn()} shouldHighlightRecommendations />
+      </QueryClientProvider>
+    );
+
+    expect(await screen.findByText('Suggested Sources')).toBeInTheDocument();
+    expect(screen.queryByText('/home/test/.claude/sessions')).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Absolute path')).not.toBeInTheDocument();
   });
 });

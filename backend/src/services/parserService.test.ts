@@ -113,6 +113,56 @@ conn.close()
     });
   };
 
+  const createCursorChatDatabase = async (dbPath: string) => {
+    await new Promise<void>((resolve, reject) => {
+      const child = spawn(
+        'python3',
+        [
+          '-c',
+          `
+import json
+import sqlite3
+import sys
+
+db_path = sys.argv[1]
+conn = sqlite3.connect(db_path)
+cur = conn.cursor()
+cur.executescript("""
+CREATE TABLE meta (
+  key TEXT PRIMARY KEY,
+  value TEXT
+);
+CREATE TABLE blobs (
+  id TEXT PRIMARY KEY,
+  data BLOB
+);
+""")
+
+meta = {
+  "agentId": "cursor-agent-1",
+  "latestRootBlobId": "root-blob-1",
+  "name": "Cursor CLI Review",
+  "createdAt": 1773925838511,
+}
+
+cur.execute("INSERT INTO meta (key, value) VALUES (?, ?)", ("0", json.dumps(meta).encode("utf-8").hex()))
+cur.execute("INSERT INTO blobs (id, data) VALUES (?, ?)", ("system-1", json.dumps({"role": "system", "content": "system prompt"}).encode("utf-8")))
+cur.execute("INSERT INTO blobs (id, data) VALUES (?, ?)", ("bootstrap-1", json.dumps({"role": "user", "content": "<user_info>ctx</user_info>\\n<agent_transcripts>x</agent_transcripts>"}).encode("utf-8")))
+cur.execute("INSERT INTO blobs (id, data) VALUES (?, ?)", ("user-1", json.dumps({"role": "user", "content": [{"type": "text", "text": "<user_query>\\nPlease resume\\n</user_query>"}]}).encode("utf-8")))
+cur.execute("INSERT INTO blobs (id, data) VALUES (?, ?)", ("assistant-1", json.dumps({"role": "assistant", "content": [{"type": "reasoning", "text": "thinking"}, {"type": "text", "text": "I\\u2019ll inspect the project and resume from there."}]}).encode("utf-8")))
+cur.execute("INSERT INTO blobs (id, data) VALUES (?, ?)", ("assistant-2", json.dumps({"role": "assistant", "content": [{"type": "tool-call", "toolName": "Read"}, {"type": "text", "text": "I found the current work in progress."}]}).encode("utf-8")))
+conn.commit()
+conn.close()
+          `,
+          dbPath,
+        ],
+        { stdio: 'ignore' }
+      );
+      child.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`python exited with ${code}`))));
+      child.on('error', reject);
+    });
+  };
+
   it('extracts Gemini session activity from fixture data', async () => {
     const fixturePath = path.join(fixturesDir, 'gemini-session.json');
 
@@ -224,6 +274,28 @@ conn.close()
     expect(conversation.messages).toHaveLength(4);
     expect(conversation.messages[0]?.sender).toBe('user');
     expect(conversation.messages[1]?.sender).toBe('agent');
+  });
+
+  it('parses Cursor CLI SQLite chat stores', async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cursor-chat-parser-'));
+    const chatDir = path.join(tempDir, '.cursor', 'chats', 'workspace-1', 'chat-1');
+    const dbPath = path.join(chatDir, 'store.db');
+    await fs.mkdir(chatDir, { recursive: true });
+    await createCursorChatDatabase(dbPath);
+
+    try {
+      const conversation = await ParserService.parseFile(dbPath);
+
+      expect(conversation.agentType).toBe('cursor');
+      expect(conversation.title).toBe('Cursor CLI Review');
+      expect(conversation.messages).toHaveLength(3);
+      expect(conversation.messages[0]?.sender).toBe('user');
+      expect(conversation.messages[0]?.content).toContain('Please resume');
+      expect(conversation.messages[1]?.sender).toBe('agent');
+      expect(conversation.messages[1]?.content).toContain('inspect the project');
+    } finally {
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
   });
 
   it('prefers Gemini absolute file paths recovered from tool output', async () => {

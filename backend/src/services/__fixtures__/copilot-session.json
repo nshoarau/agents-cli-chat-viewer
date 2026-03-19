@@ -1,0 +1,24 @@
+{
+  "providerId": "github.copilot",
+  "title": "Refactor sidebar filters",
+  "workspace": "/home/nicolas/dev/agents-cli-chat-viewer",
+  "updatedAt": "2026-03-18T14:10:00.000Z",
+  "requests": [
+    {
+      "id": "req-1",
+      "timestamp": "2026-03-18T14:00:00.000Z",
+      "prompt": "Can you simplify the sidebar filter layout?",
+      "response": {
+        "message": "Yes. I would collapse the agent buttons into a denser two-column grid."
+      }
+    },
+    {
+      "id": "req-2",
+      "timestamp": "2026-03-18T14:05:00.000Z",
+      "prompt": "What should I test after that change?",
+      "response": {
+        "message": "Verify keyboard navigation, compact mode overflow, and archived toggle persistence."
+      }
+    }
+  ]
+}

@@ -560,4 +560,18 @@ describe('ConversationDetail file preview', () => {
     expect(await screen.findByRole('dialog', { name: 'File Preview' })).toBeInTheDocument();
     expect(await screen.findByText('console.log("from files modal");')).toBeInTheDocument();
   });
+
+  it('hides the inline files panel in transcript mode and opens the files modal from the header', async () => {
+    renderConversationDetail(makeConversation());
+
+    expect(screen.getByRole('region', { name: 'Files' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /focus transcript/i }));
+
+    expect(screen.queryByRole('region', { name: 'Files' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Files' }));
+
+    expect(await screen.findByRole('dialog', { name: 'All Files' })).toBeInTheDocument();
+  });
 });

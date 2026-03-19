@@ -178,4 +178,45 @@ describe('buildConversationFileGroups', () => {
       frequency: 2,
     });
   });
+
+  it('filters non-file activity entries like folders and command names', () => {
+    const groups = buildConversationFileGroups(
+      makeConversation({
+        sessionActivity: {
+          commands: ['phpunit', 'ls /config'],
+          filesTouched: ['/config', 'phpunit', 'src/app.ts'],
+          toolCalls: [
+            {
+              name: 'search',
+              kind: 'search',
+              timestamp: '2026-03-17T12:00:01.000Z',
+              filePath: '/config',
+            },
+            {
+              name: 'command',
+              kind: 'command',
+              timestamp: '2026-03-17T12:00:02.000Z',
+              filePath: 'phpunit',
+            },
+            {
+              name: 'read_file',
+              kind: 'read',
+              timestamp: '2026-03-17T12:00:03.000Z',
+              filePath: 'src/app.ts',
+            },
+          ],
+        },
+      })
+    );
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.folderPath).toBe('src');
+    expect(groups[0]?.files).toHaveLength(1);
+    expect(groups[0]?.files[0]).toMatchObject({
+      filePath: 'src/app.ts',
+      displayPath: 'src/app.ts',
+      source: 'activity',
+      frequency: 1,
+    });
+  });
 });

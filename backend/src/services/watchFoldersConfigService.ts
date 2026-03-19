@@ -76,6 +76,14 @@ const isRelevantConversationArtifact = (targetPath: string): boolean => {
     return true;
   }
 
+  if (baseName === 'store.db') {
+    return true;
+  }
+
+  if (baseName.endsWith('.vscdb')) {
+    return true;
+  }
+
   return SUPPORTED_LOG_EXTENSIONS.has(path.extname(targetPath).toLowerCase());
 };
 
@@ -152,6 +160,12 @@ const defaultFolderCandidates = (homeDir = os.homedir()): DefaultFolderCandidate
       label: 'Codex Sessions',
       sourcePath: path.join(homeDir, '.codex/sessions'),
       targetName: 'codex-sessions',
+      kind: 'default' as const,
+    },
+    {
+      label: 'Cursor Chats',
+      sourcePath: path.join(homeDir, '.cursor/chats'),
+      targetName: 'cursor-chats',
       kind: 'default' as const,
     },
     {

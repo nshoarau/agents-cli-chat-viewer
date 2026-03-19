@@ -35,6 +35,20 @@ describe('watchFoldersConfigService default folder candidates', () => {
     homeSpy.mockRestore();
   });
 
+  it('includes Cursor chats as an automatic recommendation candidate', () => {
+    const homeDir = '/home/tester';
+
+    expect(__testUtils.defaultFolderCandidates(homeDir)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: 'Cursor Chats',
+          sourcePath: path.join(homeDir, '.cursor/chats'),
+          targetName: 'cursor-chats',
+        }),
+      ])
+    );
+  });
+
   it('rejects empty folders that are not conversation-relevant', async () => {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'watch-folders-empty-'));
 
@@ -52,6 +66,15 @@ describe('watchFoldersConfigService default folder candidates', () => {
       path.join(tempDir, '2026', '03', '19', 'rollout-2026-03-19T13-46.jsonl'),
       '{"type":"session_meta"}\n'
     );
+
+    await expect(__testUtils.hasRelevantConversationFiles(tempDir)).resolves.toBe(true);
+  });
+
+  it('accepts folders that contain Cursor chat databases', async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'watch-folders-cursor-'));
+
+    await fs.mkdir(path.join(tempDir, 'workspace-1'), { recursive: true });
+    await fs.writeFile(path.join(tempDir, 'workspace-1', 'store.db'), 'sqlite-placeholder');
 
     await expect(__testUtils.hasRelevantConversationFiles(tempDir)).resolves.toBe(true);
   });

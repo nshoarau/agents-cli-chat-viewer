@@ -1,0 +1,20 @@
+{
+  "app": "opencode",
+  "title": "Review parser edge cases",
+  "workspace": "/home/nicolas/dev/agents-cli-chat-viewer",
+  "updatedAt": "2026-03-18T15:22:00.000Z",
+  "entries": [
+    {
+      "id": "entry-1",
+      "role": "user",
+      "content": "Please inspect unsupported JSON logs before we add more watch folders.",
+      "timestamp": "2026-03-18T15:20:00.000Z"
+    },
+    {
+      "id": "entry-2",
+      "role": "assistant",
+      "content": "I will harden detection first so unknown files are skipped cleanly.",
+      "timestamp": "2026-03-18T15:21:00.000Z"
+    }
+  ]
+}

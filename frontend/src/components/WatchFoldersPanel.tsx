@@ -157,7 +157,10 @@ export const WatchFoldersPanel: React.FC<WatchFoldersPanelProps> = ({
               <>
                 <div className="watch-folders-inline-hint">
                   <span className="watch-folders-inline-hint-badge">Auto</span>
-                  One-click sources found automatically. These only appear when relevant conversation files are present.
+                  <span className="watch-folders-inline-hint-copy">
+                    One-click sources found automatically. If an agent stores chats somewhere custom,
+                    use the manual path below and point the app at the exact folder or exported transcript.
+                  </span>
                 </div>
                 <div className="watch-folders-list watch-folders-suggested-list">
                 {recommendations.map((folder) => (
@@ -206,7 +209,7 @@ export const WatchFoldersPanel: React.FC<WatchFoldersPanelProps> = ({
             <div className="watch-folders-form">
               <div className="watch-folders-inline-hint">
                 <span className="watch-folders-inline-hint-badge">Tip</span>
-                Use an absolute path to a folder or one conversation file. Add a label only if you want a custom display name.
+                Use an absolute path to a folder or one conversation file. For Cursor, prefer the workspace-storage folders for native history or a folder of exported markdown chats. Add a label only if you want a custom display name.
               </div>
               <div className="watch-folders-field-label">Absolute path to a folder or single supported log file</div>
               <input

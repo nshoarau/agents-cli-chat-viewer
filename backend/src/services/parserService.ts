@@ -11,6 +11,10 @@ import {
   OpenCodeDbService,
   parseOpenCodeSessionVirtualPath,
 } from './openCodeDbService.js';
+import {
+  CursorChatDbService,
+  isCursorChatDatabasePath,
+} from './cursorChatDbService.js';
 
 export interface ParsedConversationSummary {
   agentType: AgentType;
@@ -39,6 +43,18 @@ export class ParserService {
   ];
 
   public static async parseFile(filePath: string): Promise<Conversation> {
+    if (isCursorChatDatabasePath(filePath)) {
+      const stats = await fs.stat(filePath);
+      const cachedConversation = this.conversationCache.get(filePath);
+      if (cachedConversation?.mtimeMs === stats.mtimeMs) {
+        return cachedConversation.value;
+      }
+
+      const conversation = await CursorChatDbService.parseConversation(filePath);
+      this.storeConversationCache(filePath, stats.mtimeMs, conversation);
+      return conversation;
+    }
+
     const openCodeVirtualPath = parseOpenCodeSessionVirtualPath(filePath);
     if (openCodeVirtualPath) {
       const stats = await fs.stat(openCodeVirtualPath.dbPath);
@@ -111,6 +127,18 @@ export class ParserService {
   }
 
   public static async parseSummary(filePath: string): Promise<ParsedConversationSummary> {
+    if (isCursorChatDatabasePath(filePath)) {
+      const stats = await fs.stat(filePath);
+      const cachedSummary = this.summaryCache.get(filePath);
+      if (cachedSummary?.mtimeMs === stats.mtimeMs) {
+        return cachedSummary.value;
+      }
+
+      const conversation = await CursorChatDbService.parseConversation(filePath);
+      this.storeConversationCache(filePath, stats.mtimeMs, conversation);
+      return this.toSummary(conversation);
+    }
+
     const openCodeVirtualPath = parseOpenCodeSessionVirtualPath(filePath);
     if (openCodeVirtualPath) {
       const stats = await fs.stat(openCodeVirtualPath.dbPath);
@@ -491,7 +519,7 @@ export class ParserService {
     ) {
       return 'copilot';
     }
-    if (absolutePath.includes('cursor')) {
+    if (absolutePath.includes(`${path.sep}.cursor${path.sep}chats${path.sep}`) || absolutePath.includes('cursor')) {
       return 'cursor';
     }
     if (absolutePath.includes('opencode')) {
